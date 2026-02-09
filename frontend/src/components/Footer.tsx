@@ -12,7 +12,7 @@ export function Footer() {
               <div className="w-9 h-9 rounded-lg bg-hero-gradient flex items-center justify-center">
                 <GraduationCap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-lg font-bold">EduConnect</span>
+              <span className="text-lg font-bold">Inside Out Programme</span>
             </div>
             <p className="text-sm opacity-70 leading-relaxed">
               Empowering learners worldwide with expert-led courses and personalised live tutoring sessions.
@@ -51,8 +51,9 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-background/10 mt-8 pt-6 text-center text-sm opacity-50">
-          © {new Date().getFullYear()} EduConnect. All rights reserved.
+        <div className="border-t border-background/10 mt-8 pt-6 text-center text-sm opacity-70">
+          © {new Date().getFullYear()} InsideOutProgramme. All rights reserved.
+          <p className="pt-4"> built by <a href="https://igleware.com" target="_blank" className="underline hover:text-primary text-white text-base">IgleWare</a></p>
         </div>
       </div>
     </footer>

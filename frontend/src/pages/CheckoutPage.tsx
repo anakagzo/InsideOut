@@ -110,10 +110,10 @@ const CheckoutPage = () => {
             {paymentMethod === "bank" && (
               <div className="p-4 bg-accent rounded-lg">
                 <p className="text-sm text-accent-foreground">
-                  Please transfer <strong>${course.price}</strong> to the following account and use your email as reference:
+                  Please transfer <strong>£{course.price}</strong> to the following account and use your email as reference:
                 </p>
                 <div className="mt-3 text-sm text-muted-foreground space-y-1">
-                  <p><strong className="text-foreground">Bank:</strong> EduConnect Bank</p>
+                  <p><strong className="text-foreground">Bank:</strong> InsideOutProgramme Bank</p>
                   <p><strong className="text-foreground">Sort Code:</strong> 12-34-56</p>
                   <p><strong className="text-foreground">Account:</strong> 12345678</p>
                 </div>
@@ -127,7 +127,7 @@ const CheckoutPage = () => {
               disabled={isProcessing}
             >
               <ShieldCheck className="w-4 h-4 mr-2" />
-              {isProcessing ? "Processing..." : `Pay $${course.price}`}
+              {isProcessing ? "Processing..." : `Pay £${course.price}`}
             </Button>
           </div>
 
@@ -145,11 +145,11 @@ const CheckoutPage = () => {
               <div className="border-t border-border pt-3 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Course fee</span>
-                  <span className="text-card-foreground">${course.price}</span>
+                  <span className="text-card-foreground">£{course.price}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold">
                   <span className="text-card-foreground">Total</span>
-                  <span className="text-primary">${course.price}</span>
+                  <span className="text-primary">£{course.price}</span>
                 </div>
               </div>
             </div>

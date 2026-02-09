@@ -29,7 +29,7 @@ export function Header() {
               <GraduationCap className="w-5 h-5 text-primary-foreground" />
             </div>
             <span className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
-              EduConnect
+              Inside Out Programme
             </span>
           </Link>
 
@@ -41,9 +41,11 @@ export function Header() {
             <button onClick={() => scrollToSection("about")} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               About
             </button>
+            {/* this link will not be used 
             <Link to="/courses" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               All Courses
             </Link>
+            */}
             <Button size="sm" onClick={() => setAuthOpen(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
               <User className="w-4 h-4 mr-1" /> Account
             </Button>
@@ -64,9 +66,6 @@ export function Header() {
             <button onClick={() => scrollToSection("about")} className="block w-full text-left text-sm font-medium text-muted-foreground hover:text-primary py-2">
               About
             </button>
-            <Link to="/courses" className="block text-sm font-medium text-muted-foreground hover:text-primary py-2" onClick={() => setMobileMenuOpen(false)}>
-              All Courses
-            </Link>
             <Button size="sm" onClick={() => { setAuthOpen(true); setMobileMenuOpen(false); }} className="w-full bg-primary text-primary-foreground">
               <User className="w-4 h-4 mr-1" /> Account
             </Button>

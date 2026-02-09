@@ -32,7 +32,7 @@ export function CourseCard({ course, variant = "compact" }: CourseCardProps) {
             </div>
           </div>
           <div className="flex items-center justify-between mt-4">
-            <span className="text-xl font-bold text-primary">${course.price}</span>
+            <span className="text-xl font-bold text-primary">£{course.price}</span>
             <Button
               size="sm"
               onClick={(e) => { e.stopPropagation(); navigate(`/checkout/${course.id}`); }}
@@ -63,7 +63,7 @@ export function CourseCard({ course, variant = "compact" }: CourseCardProps) {
           <span className="text-xs text-muted-foreground">({course.reviewCount})</span>
         </div>
         <div className="flex items-center justify-between mt-3">
-          <span className="text-lg font-bold text-primary">${course.price}</span>
+          <span className="text-lg font-bold text-primary">£{course.price}</span>
           <Button
             size="sm"
             onClick={(e) => { e.stopPropagation(); navigate(`/checkout/${course.id}`); }}

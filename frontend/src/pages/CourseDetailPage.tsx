@@ -56,7 +56,7 @@ const CourseDetailPage = () => {
                   <span className="font-semibold text-foreground">{course.rating}</span>
                   <span className="text-sm text-muted-foreground">({course.reviewCount} reviews)</span>
                 </div>
-                <span className="text-2xl font-bold text-primary">${course.price}</span>
+                <span className="text-2xl font-bold text-primary">£{course.price}</span>
               </div>
 
               <p className="text-muted-foreground leading-relaxed max-w-2xl">{course.description}</p>
