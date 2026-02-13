@@ -12,54 +12,55 @@ from passlib.hash import pbkdf2_sha256
 
 from db import db
 from models import User as UserModel
-from schemas import UserSchema, UserRegisterSchema, UserLoginSchema, EditPasswordSchema, UserUpdateSchema
+from schemas import UserSchema, UserRegisterSchema, UserUpdateSchema, UserLoginSchema, ChangePasswordSchema
 from blocklist import BLOCKLIST
-from utils import admin_required
+from utils.decorators import admin_required
 
 blp = Blueprint("Users", __name__, description="Operations on users")
+
+
+
+@blp.route("/auth/login")
+class Login(MethodView):
+    @blp.arguments(UserLoginSchema)
+    def post(self, data):
+        user = UserModel.query.filter_by(email=data["email"].lower().strip()).first()
+        if not user or not pbkdf2_sha256.verify(data["password"], user.password):
+            abort(401, message="Invalid credentials")
+
+        access = create_access_token(identity=user.id, additional_claims={"role": user.role}, fresh=True )
+        refresh = create_refresh_token(identity=user.id)
+        return {"access_token": access, "refresh_token": refresh}
+
 
 @blp.route("/auth/register")
 class UserRegister(MethodView):
     @blp.arguments(UserRegisterSchema)
     def post(self, user_data):
-        if UserModel.query.filter(UserModel.email == user_data["email"]).first():
-            abort(409, message="A user with that email already exists.")
+        email = user_data["email"].lower().strip()
+
+        if UserModel.query.filter_by(email=email).first():
+            abort(409, message="Email already exists.")
 
         user = UserModel(
-            email=user_data["email"],
+            email=email,
             password=pbkdf2_sha256.hash(user_data["password"]),
-            profile_image_url=user_data.get("profile_image_url"),
             first_name=user_data.get("first_name"),
             last_name=user_data.get("last_name"),
-            account_name=user_data.get("account_name"),
-            phone_number=user_data.get("phone_number"),
-            occupation=user_data.get("occupation"),
+            role="student",  # explicit default
         )
+
         db.session.add(user)
         db.session.commit()
 
-        return {"message": "User created successfully."}, 201
-    
-    
-@blp.route("/auth/login")
-class UserLogin(MethodView):
-    @blp.arguments(UserLoginSchema)
-    def post(self, user_data):
-        user = UserModel.query.filter(
-            UserModel.email == user_data["email"]
-        ).first()
+        access = create_access_token(identity=user.id)
+        refresh = create_refresh_token(identity=user.id)
 
-        if user and pbkdf2_sha256.verify(user_data["password"], user.password):
-            
+        return {
+            "access_token": access,
+            "refresh_token": refresh
+        }, 201
 
-            access_token = create_access_token(
-                identity=str(user.id), 
-                additional_claims={"is_admin": user.is_admin}, 
-                fresh=True)
-            refresh_token = create_refresh_token(str(user.id))
-            return {"access_token": access_token, "refresh_token": refresh_token}, 200
-
-        abort(401, message="Invalid credentials.")
 
 
 @blp.route("/auth/logout")
@@ -70,41 +71,30 @@ class UserLogout(MethodView):
         BLOCKLIST.add(jti)
         return {"message": "Successfully logged out"}, 200
 
-
-@blp.route("/me")
-class User(MethodView):
-    @blp.response(200, UserResponseSchema)
-    @jwt_required()
-    def get(self):
-        user_id = int(get_jwt_identity())
-        user = UserModel.query.get_or_404(user_id)
-        return user
-  
     
+@blp.route("/me")
+class UserSelf(MethodView):
+
+    @jwt_required()
+    @blp.response(200, UserSchema)
+    def get(self):
+        user_id = get_jwt_identity()
+        return UserModel.query.get_or_404(user_id)
+
+    @jwt_required()
     @blp.arguments(UserUpdateSchema)
     @blp.response(200, UserSchema)
-    @jwt_required()
-    def put(self, user_data, user_id):
-        user = UserModel.query.get(user_id)
+    def put(self, user_data):
+        user_id = get_jwt_identity()
+        user = UserModel.query.get_or_404(user_id)
 
-        if user:
-            user.profile_image_url = user_data.get(
-                "profile_image_url", user.profile_image_url
-            ),
-            user.first_name = user_data.get("first_name") if "first_name" in user_data else user.first_name,
-            user.last_name = user_data.get("last_name") if "last_name" in user_data else user.last_name,
-            user.account_name = user_data.get("account_name") if "account_name" in user_data else user.account_name,
-            user.phone_number = user_data.get("phone_number") if "phone_number" in user_data else user.phone_number,
-            user.occupation = user_data.get("occupation") if "occupation" in user_data else user.occupation,
-        else:
-            user = UserModel(id=user_id, **user_data)
+        for field in user_data:
+            setattr(user, field, user_data[field])
 
-        db.session.add(user)
         db.session.commit()
-
         return user
-    
-    
+   
+
 @blp.route("/users/<int:user_id>")
 class UserAdmin(MethodView):
 
@@ -129,7 +119,7 @@ class UserList(MethodView):
 
 @blp.route("/me/change_password")    
 class UserChangePassword(MethodView):
-    @blp.arguments(EditPasswordSchema)
+    @blp.arguments(ChangePasswordSchema)
     @jwt_required(fresh=True)
     def put(self, user_data):
         user_id = int(get_jwt_identity())
@@ -145,17 +135,25 @@ class UserChangePassword(MethodView):
 
 @blp.route("/auth/refresh")
 class TokenRefresh(MethodView):
-@jwt_required(refresh=True)
-def post(self):
-    identity = get_jwt_identity()
-    user_role = get_jwt.get("is_admin", False)
-    jti = get_jwt()["jti"]
-    BLOCKLIST.add(jti)
 
-    return {
-        "access_token": create_access_token(
-            identity=identity, 
-            additional_claims={"is_admin": user_role},
-            fresh=False),
-        "refresh_token": create_refresh_token(identity=identity),
-    }, 200
+    @jwt_required(refresh=True)
+    def post(self):
+        identity = get_jwt_identity()
+        claims = get_jwt()
+
+        jti = get_jwt()["jti"]
+        BLOCKLIST.add(jti)
+        
+        new_access = create_access_token(
+            identity=identity,
+            additional_claims={"role": claims.get("role")},
+            fresh=False
+        )
+
+        new_refresh = create_refresh_token(identity=identity)
+
+        return {
+            "access_token": new_access,
+            "refresh_token": new_refresh
+        }, 200
+

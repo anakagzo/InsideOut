@@ -1,18 +1,20 @@
 from db import db
+from datetime import datetime
 
-class Course(db.Model): 
+class Course(db.Model):
     __tablename__ = "courses"
 
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.Text, unique=True, nullable=False)
-    image_url = db.Column(db.Text, nullable=True)
+    title = db.Column(db.String(255), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=False)
-    price = db.Column(db.Numeric(10, 2), unique=False, nullable=False)
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    image_url = db.Column(db.Text)
+    preview_video_url = db.Column(db.Text)
+    price = db.Column(db.Numeric(10,2), nullable=False)
 
-    reviews = db.relationship("Review", back_populates="course", cascade="all, delete-orphan", lazy="dynamic"  )
-    students = db.relationship("User", back_populates="enrolled_courses", secondary="enrollments", lazy="dynamic")
-    enrollments = db.relationship("Enrollment", back_populates="course", lazy="dynamic")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    reviews = db.relationship("Review", back_populates="course", cascade="all, delete-orphan")
+    enrollments = db.relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
 
 
 

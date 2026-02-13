@@ -1,21 +1,25 @@
 from db import db
-
+from datetime import datetime
 
 class User(db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.Text, unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    profile_image_url = db.Column(db.Text, nullable=True)
-    first_name = db.Column(db.Text, nullable=True)
-    last_name = db.Column(db.Text, nullable=True)
-    account_name = db.Column(db.Text, nullable=True)
-    phone_number = db.Column(db.Text, nullable=True)
-    is_admin = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
 
-    enrolled_courses = db.relationship("Course", back_populates="students", secondary="enrollments")
-    enrollments = db.relationship("Enrollment", back_populates="student", lazy="dynamic")
-    schedules = db.relationship("Schedule", back_populates="user", cascade="all, delete-orphan", lazy="dynamic")
-    reviews = db.relationship("Review", back_populates="user", lazy="dynamic")
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    initials = db.Column(db.String(10), unique=True, nullable=False)
+
+    phone_number = db.Column(db.String(20))
+    occupation = db.Column(db.String(120))
+
+    role = db.Column(db.Enum("student", "admin", name="user_roles"), default="student")
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    enrollments = db.relationship("Enrollment", back_populates="student", cascade="all, delete")
+    reviews = db.relationship("Review", back_populates="user", cascade="all, delete")
+    notification_settings = db.relationship("EmailNotificationSettings", uselist=False, back_populates="user")
+    availability = db.relationship("Availability", back_populates="user", cascade="all, delete")

@@ -4,9 +4,13 @@ class Schedule(db.Model):
     __tablename__ = "schedules"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    enrollment_id = db.Column(db.Integer, db.ForeignKey("enrollments.id"), nullable=False, index=True)
-    scheduled_date = db.Column(db.DateTime, nullable=False)
+    enrollment_id = db.Column(db.Integer, db.ForeignKey("enrollments.id"), nullable=False)
+
+    date = db.Column(db.Date, nullable=False)
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+
+    zoom_link = db.Column(db.Text)
+    status = db.Column(db.Enum("scheduled", "reschedule_requested", name="schedule_status"), default="scheduled")
 
     enrollment = db.relationship("Enrollment", back_populates="schedules")
-    user = db.relationship("User", back_populates="schedules")

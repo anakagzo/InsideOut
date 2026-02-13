@@ -8,9 +8,13 @@ from db import db
 from blocklist import BLOCKLIST
 
 from resources.user import blp as UserBlueprint
-from resources.item import blp as ItemBlueprint
-from resources.store import blp as StoreBlueprint
-from resources.tag import blp as TagBlueprint
+from resources.review import blp as ReviewBlueprint
+from resources.course import blp as CourseBlueprint
+from resources.enrollment import blp as EnrollmentBlueprint
+from resources.schedule import blp as ScheduleBlueprint
+from resources.availability import blp as AvailabilityBlueprint 
+from resources.notification import blp as NotificationBlueprint
+
 
 
 def create_app(db_url=None):
@@ -99,8 +103,11 @@ def create_app(db_url=None):
 
 
     api.register_blueprint(UserBlueprint)
-    api.register_blueprint(ItemBlueprint)
-    api.register_blueprint(StoreBlueprint)
-    api.register_blueprint(TagBlueprint)
+    api.register_blueprint(ReviewBlueprint)
+    api.register_blueprint(CourseBlueprint)
+    api.register_blueprint(EnrollmentBlueprint)
+    api.register_blueprint(ScheduleBlueprint)
+    api.register_blueprint(AvailabilityBlueprint)
+    api.register_blueprint(NotificationBlueprint)
 
     return app
