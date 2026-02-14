@@ -1,7 +1,7 @@
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, verify_jwt_in_request, get_jwt_identity
-from models import Course, SavedCourse
+from models import Course, SavedCourse, Enrollment
 from db import db
 from schemas import CourseSchema, CourseDetailSchema, CourseSingleResponseSchema
 from utils.decorators import admin_required
@@ -18,10 +18,25 @@ from sqlalchemy import func, or_
 class CourseList(MethodView):
     @blp.paginate()
     @blp.response(200, CourseSchema(many=True))
-    def get(self):
-        search = request.args.get("search")
+    def get(self, pagination_parameters):
+        # custom query parameters for search and filtering
+        search = request.args.get("search", "").strip()
+        type_filter = request.args.get("type")
 
         query = Course.query
+
+        if type_filter:
+            verify_jwt_in_request()
+            user_id = get_jwt_identity()
+
+            if type_filter not in ["active", "completed"]:
+                abort(400, message="Invalid type filter. Must be 'active' or 'completed'")
+
+            query = (
+                query
+                .join(Enrollment, Course.id == Enrollment.course_id)
+                .filter(Enrollment.student_id == user_id, Enrollment.status == type_filter)
+            )
 
         if search:
             term = f"%{search}%"
@@ -32,11 +47,8 @@ class CourseList(MethodView):
                 )
             )
 
-        query = query.order_by(Course.created_at.desc())
+        return query.order_by(Course.created_at.desc())
 
-        return query
-
-    
     @jwt_required()
     @admin_required
     @blp.arguments(CourseSchema)
