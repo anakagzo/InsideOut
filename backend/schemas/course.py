@@ -27,3 +27,15 @@ class CourseSingleResponseSchema(CourseDetailSchema):
         fields.Dict(), 
         dump_only=True
     )
+
+
+class CoursePaginationSchema(Schema):
+    page = fields.Int()
+    page_size = fields.Int()
+    total = fields.Int()
+    total_pages = fields.Int()
+
+
+class CourseListResponseSchema(Schema):
+    data = fields.List(fields.Nested(CourseSchema))
+    pagination = fields.Nested(CoursePaginationSchema)

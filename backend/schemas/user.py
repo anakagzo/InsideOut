@@ -42,3 +42,16 @@ class UserLoginSchema(Schema):
 class ChangePasswordSchema(Schema):
     old_password = fields.Str(required=True)
     new_password = fields.Str(required=True)
+
+
+class PaginationSchema(Schema):
+    page = fields.Int()
+    page_size = fields.Int()
+    total = fields.Int()
+    total_pages = fields.Int()
+
+
+class UserListResponseSchema(Schema):
+    data = fields.List(fields.Nested(UserSchema))
+    pagination = fields.Nested(PaginationSchema)
+

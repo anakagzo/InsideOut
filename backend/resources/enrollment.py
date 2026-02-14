@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils.decorators import admin_required
 from models import Enrollment, User, Course
 from db import db
-from schemas import EnrollmentSchema, GroupedScheduleSchema
+from schemas import EnrollmentSchema, GroupedScheduleSchema, EnrollmentListResponseSchema
 from datetime import datetime
 from collections import defaultdict
 from sqlalchemy import or_, case
@@ -17,10 +17,13 @@ blp = Blueprint("Enrollments", "enrollments", url_prefix="/enrollments")
 class EnrollmentList(MethodView):
     @jwt_required()
     @admin_required
-    @blp.paginate()
-    @blp.response(200, EnrollmentSchema(many=True))
-    def get(self, pagination_parameters):
-        search = request.args.get("search", "")
+    @blp.response(200, EnrollmentListResponseSchema)
+    def get(self):
+        page = request.args.get("page", 1, type=int)
+        page_size = request.args.get("page_size", 10, type=int)
+        search = request.args.get("search", "").strip()
+
+        normalized_search = " ".join(search.split())
         
         query = Enrollment.query
         
@@ -29,11 +32,13 @@ class EnrollmentList(MethodView):
             query = query.join(Course).join(User)
             
             # Filter by search term across multiple fields
+            full_name = User.first_name + " " + User.last_name
             query = query.filter(
                 or_(
                     Course.title.ilike(f"%{search}%"),
                     User.first_name.ilike(f"%{search}%"),
-                    User.last_name.ilike(f"%{search}%")
+                    User.last_name.ilike(f"%{search}%"),
+                    full_name.ilike(f"%{normalized_search}%")
                 )
             )
             
@@ -41,13 +46,27 @@ class EnrollmentList(MethodView):
             relevance = case(
                 (Course.title == search, 4),  # Exact course title match
                 (Course.title.ilike(f"{search}%"), 3),  # Course title starts with
-                (or_(User.first_name == search, User.last_name == search), 2),  # Exact name match
-                (or_(User.first_name.ilike(f"{search}%"), User.last_name.ilike(f"{search}%")), 1),  # Name starts with
+                (or_(User.first_name == search, User.last_name == search, full_name == normalized_search), 2),  # Exact name match
+                (or_(User.first_name.ilike(f"{search}%"), User.last_name.ilike(f"{search}%"), full_name.ilike(f"{normalized_search}%")), 1),  # Name starts with
                 else_=0
             )
             query = query.order_by(relevance.desc())
         
-        return query
+        pagination = query.paginate(
+            page=page,
+            per_page=page_size,
+            error_out=False
+        )
+
+        return {
+            "data": pagination.items,
+            "pagination": {
+                "page": pagination.page,
+                "page_size": pagination.per_page,
+                "total": pagination.total,
+                "total_pages": pagination.pages
+            }
+        }
 
     @jwt_required()
     @blp.arguments(EnrollmentSchema)

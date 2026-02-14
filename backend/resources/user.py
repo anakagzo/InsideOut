@@ -9,10 +9,12 @@ from flask_jwt_extended import (
     jwt_required,
 )
 from passlib.hash import pbkdf2_sha256
+from flask import request
+from sqlalchemy import or_
 
 from db import db
 from models import User as UserModel
-from schemas import UserSchema, UserRegisterSchema, UserUpdateSchema, UserLoginSchema, ChangePasswordSchema
+from schemas import UserSchema, UserRegisterSchema, UserUpdateSchema, UserLoginSchema, ChangePasswordSchema, UserListResponseSchema
 from blocklist import BLOCKLIST
 from utils.decorators import admin_required
 
@@ -110,11 +112,54 @@ class UserAdmin(MethodView):
 
 @blp.route("/users")
 class UserList(MethodView):
-    @blp.response(200, UserSchema(many=True))
+
+    @blp.response(200, UserListResponseSchema)
     @jwt_required()
     @admin_required
     def get(self):
-        return UserModel.query.all()
+        page = request.args.get("page", 1, type=int)
+        page_size = request.args.get("page_size", 10, type=int)
+
+        search = request.args.get("search", "").strip()
+        normalized_search = " ".join(search.split())
+
+        query = UserModel.query.filter(UserModel.role != "admin")
+
+        if search:
+            full_name = UserModel.first_name + " " + UserModel.last_name
+            query = query.filter(
+                or_(
+                    UserModel.first_name.ilike(f"%{search}%"),
+                    UserModel.last_name.ilike(f"%{search}%"),
+                    UserModel.email.ilike(f"%{search}%"),
+                    UserModel.occupation.ilike(f"%{search}%"),
+                    full_name.ilike(normalized_search),
+                    full_name.ilike(f"%{normalized_search}%")
+                )
+            )
+
+        query = query.order_by(
+            UserModel.first_name.asc(),
+            UserModel.last_name.asc()
+        )
+
+        # 🔹 Apply pagination manually
+        pagination = query.paginate(
+            page=page,
+            per_page=page_size,
+            error_out=False
+        )
+
+        return {
+            "data": pagination.items,
+            "pagination": {
+                "page": pagination.page,
+                "page_size": pagination.per_page,
+                "total": pagination.total,
+                "total_pages": pagination.pages
+            }
+        }
+
     
 
 @blp.route("/me/change_password")    

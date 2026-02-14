@@ -3,7 +3,7 @@ from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, verify_jwt_in_request, get_jwt_identity
 from models import Course, SavedCourse, Enrollment
 from db import db
-from schemas import CourseSchema, CourseDetailSchema, CourseSingleResponseSchema
+from schemas import CourseSchema, CourseDetailSchema, CourseSingleResponseSchema, CourseListResponseSchema
 from utils.decorators import admin_required
 
 blp = Blueprint("Courses", "courses", url_prefix="/courses")
@@ -139,9 +139,11 @@ class SaveCourse(MethodView):
 class SavedCoursesList(MethodView):
 
     @jwt_required()
-    @blp.paginate()
-    @blp.response(200, CourseSchema(many=True))
-    def get(self, pagination_parameters):
+    @blp.response(200, CourseListResponseSchema)
+    def get(self):
+
+        page = request.args.get("page", 1, type=int)
+        page_size = request.args.get("page_size", 10, type=int)
 
         user_id = get_jwt_identity()
 
@@ -152,6 +154,20 @@ class SavedCoursesList(MethodView):
             .order_by(Course.created_at.desc())
         )
 
-        return query
+        pagination = query.paginate(
+            page=page,
+            per_page=page_size,
+            error_out=False
+        )
+
+        return {
+            "data": pagination.items,
+            "pagination": {
+                "page": pagination.page,
+                "page_size": pagination.per_page,
+                "total": pagination.total,
+                "total_pages": pagination.pages
+            }
+        }
 
 
