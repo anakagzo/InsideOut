@@ -23,3 +23,4 @@ class User(db.Model):
     reviews = db.relationship("Review", back_populates="user", cascade="all, delete")
     notification_settings = db.relationship("EmailNotificationSettings", uselist=False, back_populates="user")
     availability = db.relationship("Availability", back_populates="user", cascade="all, delete")
+    unavailable_dates = db.relationship("AvailabilityUnavailableDate", back_populates="user", cascade="all, delete")
