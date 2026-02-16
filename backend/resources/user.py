@@ -1,3 +1,5 @@
+"""User authentication and profile management endpoints."""
+
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
@@ -25,8 +27,11 @@ blp = Blueprint("Users", __name__, description="Operations on users")
 
 @blp.route("/auth/login")
 class Login(MethodView):
+    """Authentication endpoint for user login."""
+
     @blp.arguments(UserLoginSchema)
     def post(self, data):
+        """Validate credentials and return access/refresh tokens."""
         user = UserModel.query.filter_by(email=data["email"].lower().strip()).first()
         if not user or not pbkdf2_sha256.verify(data["password"], user.password):
             abort(401, message="Invalid credentials")
@@ -38,8 +43,11 @@ class Login(MethodView):
 
 @blp.route("/auth/register")
 class UserRegister(MethodView):
+    """Endpoint for creating a new student account."""
+
     @blp.arguments(UserRegisterSchema)
     def post(self, user_data):
+        """Register a student and return initial token pair."""
         email = user_data["email"].lower().strip()
 
         if UserModel.query.filter_by(email=email).first():
@@ -74,8 +82,11 @@ class UserRegister(MethodView):
 
 @blp.route("/auth/logout")
 class UserLogout(MethodView):
+    """Token revocation endpoint for authenticated users."""
+
     @jwt_required()
     def post(self):
+        """Revoke current JWT by adding its JTI to the blocklist."""
         jti = get_jwt()["jti"]
         BLOCKLIST.add(jti)
         return {"message": "Successfully logged out"}, 200
@@ -83,10 +94,12 @@ class UserLogout(MethodView):
     
 @blp.route("/me")
 class UserSelf(MethodView):
+    """Read and update operations for the current user profile."""
 
     @jwt_required()
     @blp.response(200, UserSchema)
     def get(self):
+        """Return the authenticated user's profile."""
         user_id = get_jwt_identity()
         return UserModel.query.get_or_404(user_id)
 
@@ -94,6 +107,7 @@ class UserSelf(MethodView):
     @blp.arguments(UserUpdateSchema)
     @blp.response(200, UserSchema)
     def put(self, user_data):
+        """Update profile fields for the authenticated user."""
         user_id = get_jwt_identity()
         user = UserModel.query.get_or_404(user_id)
 
@@ -114,10 +128,12 @@ class UserSelf(MethodView):
 
 @blp.route("/users/<int:user_id>")
 class UserAdmin(MethodView):
+    """Administrative user operations."""
 
     @jwt_required(fresh=True)
     @admin_required
     def delete(self, user_id):
+        """Delete a user as an admin."""
         user = UserModel.query.get_or_404(user_id)
 
         db.session.delete(user)
@@ -127,11 +143,13 @@ class UserAdmin(MethodView):
 
 @blp.route("/users")
 class UserList(MethodView):
+    """Paginated listing of non-admin users for admins."""
 
     @blp.response(200, UserListResponseSchema)
     @jwt_required()
     @admin_required
     def get(self):
+        """Return paginated users with optional text search."""
         page = request.args.get("page", 1, type=int)
         page_size = request.args.get("page_size", 10, type=int)
 
@@ -179,9 +197,12 @@ class UserList(MethodView):
 
 @blp.route("/me/change_password")    
 class UserChangePassword(MethodView):
+    """Endpoint for changing current user's password."""
+
     @blp.arguments(ChangePasswordSchema)
     @jwt_required(fresh=True)
     def put(self, user_data):
+        """Validate old password and persist the new password hash."""
         user_id = int(get_jwt_identity())
         user = UserModel.query.get_or_404(user_id)
         if not pbkdf2_sha256.verify(user_data["old_password"], user.password):
@@ -195,9 +216,11 @@ class UserChangePassword(MethodView):
 
 @blp.route("/auth/refresh")
 class TokenRefresh(MethodView):
+    """Token rotation endpoint using refresh tokens."""
 
     @jwt_required(refresh=True)
     def post(self):
+        """Issue new access and refresh tokens, revoking the previous refresh token."""
         identity = get_jwt_identity()
         claims = get_jwt()
 

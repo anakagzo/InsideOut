@@ -1,3 +1,5 @@
+"""Endpoints for managing email notification preferences."""
+
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -16,6 +18,7 @@ blp = Blueprint(
 
 @blp.route("/")
 class EmailNotificationSettingsUpsert(MethodView):
+    """Create or update notification settings for the current user."""
 
     @jwt_required()
     @blp.arguments(NotificationSchema)
@@ -54,10 +57,12 @@ class EmailNotificationSettingsUpsert(MethodView):
 
 @blp.route("/me")
 class EmailNotificationSettingsGet(MethodView):
+    """Read notification settings for the current user."""
 
     @jwt_required()
     @blp.response(200, NotificationSchema)
     def get(self):
+        """Return persisted settings or model defaults when not configured yet."""
         user_id = get_jwt_identity()
 
         settings = EmailNotificationSettings.query.filter_by(

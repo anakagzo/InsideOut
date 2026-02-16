@@ -1,3 +1,9 @@
+"""Media upload service.
+
+Provides validation, storage, and URL generation for uploaded course media
+across local and S3-compatible providers.
+"""
+
 import os
 import importlib
 from uuid import uuid4
@@ -5,7 +11,10 @@ from werkzeug.utils import secure_filename
 
 
 class MediaUploadService:
+    """Handle secure upload processing for course media files."""
+
     def __init__(self, app):
+        """Initialize service from Flask app configuration."""
         self.app = app
         self.driver = app.config.get("MEDIA_STORAGE_DRIVER", "local").lower()
         self.max_upload_mb = int(app.config.get("MAX_MEDIA_UPLOAD_MB", 50))
@@ -22,9 +31,11 @@ class MediaUploadService:
 
     @classmethod
     def from_app(cls, app):
+        """Build service from the active Flask app instance."""
         return cls(app)
 
     def save_course_media(self, file_storage):
+        """Validate and persist a course media file, returning its public URL."""
         if file_storage is None:
             return None
 
@@ -47,12 +58,14 @@ class MediaUploadService:
         raise RuntimeError("Unsupported MEDIA_STORAGE_DRIVER configuration.")
 
     def _get_extension(self, file_name):
+        """Extract lowercase extension from a sanitized file name."""
         if "." not in file_name:
             raise ValueError("Uploaded file must include an extension.")
 
         return file_name.rsplit(".", 1)[1].lower()
 
     def _resolve_media_type(self, mimetype, extension):
+        """Classify media as image or video based on MIME type and extension."""
         normalized_mimetype = (mimetype or "").lower()
 
         is_image = extension in self.allowed_image_extensions and normalized_mimetype.startswith("image/")
@@ -66,6 +79,7 @@ class MediaUploadService:
         raise ValueError("Only valid image or video files are allowed.")
 
     def _validate_size(self, file_storage):
+        """Ensure uploaded file size is within configured limit."""
         stream = file_storage.stream
         current_position = stream.tell()
         stream.seek(0, os.SEEK_END)
@@ -79,10 +93,12 @@ class MediaUploadService:
             stream.seek(0)
 
     def _build_storage_key(self, folder, media_type, extension):
+        """Build unique storage key used by local/cloud backends."""
         token = uuid4().hex
         return f"{folder}/{media_type}/{token}.{extension}"
 
     def _save_local(self, file_storage, storage_key):
+        """Save file to local filesystem and return a URL path."""
         upload_dir = self.app.config.get("MEDIA_LOCAL_UPLOAD_DIR", "uploads")
         target_root = upload_dir
 
@@ -99,6 +115,7 @@ class MediaUploadService:
         return f"{media_base_url}/{storage_key}"
 
     def _save_s3_compatible(self, file_storage, storage_key):
+        """Upload file to S3-compatible storage and return a public URL."""
         bucket = self.app.config.get("MEDIA_BUCKET_NAME")
         region = self.app.config.get("MEDIA_S3_REGION")
         endpoint_url = self.app.config.get("MEDIA_S3_ENDPOINT_URL")

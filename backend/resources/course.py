@@ -1,3 +1,9 @@
+"""Course resource endpoints.
+
+This module exposes listing, creation, update, save, and schedule-retrieval
+operations for courses.
+"""
+
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, verify_jwt_in_request, get_jwt_identity
@@ -17,6 +23,10 @@ from sqlalchemy import func, or_
 
 
 def _default_course_image_url():
+    """Return the configured default image URL for courses.
+
+    Falls back to a local default media path when no explicit URL is configured.
+    """
     configured_default = current_app.config.get("DEFAULT_COURSE_IMAGE_URL")
     if configured_default:
         return configured_default
@@ -29,9 +39,12 @@ def _default_course_image_url():
 
 @blp.route("/")
 class CourseList(MethodView):
+    """Collection operations for courses."""
+
     @blp.paginate()
     @blp.response(200, CourseSchema(many=True))
     def get(self, pagination_parameters):
+        """List courses with optional search and enrollment-status filters."""
         # custom query parameters for search and filtering
         search = request.args.get("search", "").strip()
         type_filter = request.args.get("type")
@@ -66,6 +79,7 @@ class CourseList(MethodView):
     @admin_required
     @blp.response(201, CourseSchema)
     def post(self):
+        """Create a course from multipart form data and optional preview media."""
         is_multipart = (request.content_type or "").startswith("multipart/form-data")
         if not is_multipart:
             abort(400, message="Content-Type must be multipart/form-data.")
@@ -115,9 +129,11 @@ class CourseList(MethodView):
 
 @blp.route("/<int:course_id>")
 class CourseDetail(MethodView):
+    """Read operations for a single course."""
 
     @blp.response(200, CourseDetailSchema)
     def get(self, course_id):
+        """Retrieve a course with latest reviews attached."""
 
         course = Course.query.get_or_404(course_id)
 
@@ -135,11 +151,13 @@ class CourseDetail(MethodView):
 
 @blp.route("/<int:course_id>")
 class CourseAdminEdit(MethodView):
+    """Admin update and delete operations for a course."""
 
     @jwt_required(fresh=True)
     @admin_required
     @blp.response(200, CourseSchema)
     def put(self, course_id):
+        """Update a course using multipart form fields and optional media upload."""
         course = Course.query.get_or_404(course_id)
 
         is_multipart = (request.content_type or "").startswith("multipart/form-data")
@@ -191,6 +209,7 @@ class CourseAdminEdit(MethodView):
     @jwt_required(fresh=True)
     @admin_required
     def delete(self, course_id):
+        """Delete a course."""
         course = Course.query.get_or_404(course_id)
 
         db.session.delete(course)
@@ -201,9 +220,11 @@ class CourseAdminEdit(MethodView):
     
 @blp.route("/<int:course_id>/save")
 class SaveCourse(MethodView):
+    """Endpoint for students to save a course."""
 
     @jwt_required()
     def post(self, course_id):
+        """Save a course for the current user if not already saved."""
         user_id = get_jwt_identity()
 
         Course.query.get_or_404(course_id)
@@ -227,10 +248,12 @@ class SaveCourse(MethodView):
     
 @blp.route("/saved")
 class SavedCoursesList(MethodView):
+    """List saved courses for the current user."""
 
     @jwt_required()
     @blp.response(200, CourseListResponseSchema)
     def get(self):
+        """Return paginated saved courses for the authenticated user."""
 
         page = request.args.get("page", 1, type=int)
         page_size = request.args.get("page_size", 10, type=int)
@@ -263,10 +286,12 @@ class SavedCoursesList(MethodView):
 
 @blp.route("/<int:course_id>/schedules")
 class CourseUserSchedules(MethodView):
+    """Read schedules for the current user's enrollment in a course."""
 
     @jwt_required()
     @blp.response(200, ScheduleSchema(many=True))
     def get(self, course_id):
+        """Return schedules for the caller scoped to the given course."""
         user_id = get_jwt_identity()
         User.query.get_or_404(user_id)
 

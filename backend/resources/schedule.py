@@ -1,3 +1,5 @@
+"""Schedule endpoints for reading and creating class sessions."""
+
 from datetime import datetime
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
@@ -10,9 +12,12 @@ blp = Blueprint("Schedules", "schedules", url_prefix="/schedules")
 
 @blp.route("/")
 class ScheduleList(MethodView):
+    """Collection operations for schedules."""
+
     @jwt_required()
     @blp.response(200, ScheduleSchema(many=True))
     def get(self):
+        """Return all schedules linked to the authenticated user's enrollments."""
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
         if not user:
@@ -32,6 +37,7 @@ class ScheduleList(MethodView):
     @blp.arguments(ScheduleSchema, many=True)
     @blp.response(201, ScheduleSchema(many=True))
     def post(self, data):
+        """Create one or more schedules for a single enrollment owned by the caller."""
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
         if not user:
@@ -71,9 +77,12 @@ class ScheduleList(MethodView):
 
 @blp.route("/<int:schedule_id>")
 class ScheduleDetail(MethodView):
+    """Read operations for a single schedule."""
+
     @jwt_required()
     @blp.response(200, ScheduleSchema)
     def get(self, schedule_id):
+        """Return one schedule if it belongs to an enrollment owned by the caller."""
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
         if not user:

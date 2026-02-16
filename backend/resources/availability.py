@@ -1,3 +1,5 @@
+"""Availability management endpoints for admin users."""
+
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -12,11 +14,13 @@ blp = Blueprint("Availability", "availability", url_prefix="/availability")
 
 @blp.route("/")
 class AvailabilityList(MethodView):
+    """Create and read availability configuration for the authenticated admin."""
 
     @jwt_required()
     @admin_required
     @blp.response(200, AvailabilitySchema)
     def get(self):
+        """Return the current availability window, time slots, and unavailable dates."""
         user_id = int(get_jwt_identity())
         admin_user = User.query.get_or_404(user_id)
 
@@ -47,6 +51,7 @@ class AvailabilityList(MethodView):
     @blp.arguments(AvailabilityUpsertSchema)
     @blp.response(201, AvailabilitySchema)
     def post(self, data):
+        """Replace availability data using an upsert/diff strategy per weekday/date."""
         # Identify caller and enforce admin-only write access.
         user_id = int(get_jwt_identity())
         admin_user = User.query.get_or_404(user_id)

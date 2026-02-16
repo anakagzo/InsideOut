@@ -1,3 +1,5 @@
+"""Review endpoints for course feedback and tutor replies."""
+
 from flask_smorest import Blueprint, abort
 from flask.views import MethodView
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -15,12 +17,14 @@ blp = Blueprint(
 
 @blp.route("/")
 class ReviewList(MethodView):
+    """Collection operations for course reviews."""
 
     @jwt_required()
     @role_required("student")
     @blp.arguments(ReviewCreateSchema)
     @blp.response(201, ReviewSchema)
     def post(self, review_data, course_id):
+        """Create a review for a course if the user is enrolled and has not reviewed yet."""
         student_id = get_jwt_identity()
 
         course = Course.query.get_or_404(course_id)
@@ -56,17 +60,20 @@ class ReviewList(MethodView):
     
     @blp.response(200, ReviewSchema(many=True))
     def get(self, course_id):
+        """Return all reviews for the specified course."""
         return Review.query.filter_by(course_id=course_id).all()
 
 
 @blp.route("/<int:review_id>/reply")
 class TutorReplyResource(MethodView):
+    """Tutor reply operations for reviews."""
 
     @jwt_required()
     @role_required("tutor")
     @blp.arguments(TutorReplySchema)
     @blp.response(200, ReviewSchema)
     def put(self, reply_data, course_id, review_id):
+        """Set or update tutor reply for a review owned by the tutor's course."""
         tutor_id = get_jwt_identity()
 
         review = Review.query.get_or_404(review_id)

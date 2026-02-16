@@ -1,3 +1,5 @@
+"""Enrollment endpoints for listing, creating, deleting, and schedule grouping."""
+
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -15,10 +17,13 @@ blp = Blueprint("Enrollments", "enrollments", url_prefix="/enrollments")
 
 @blp.route("/")
 class EnrollmentList(MethodView):
+    """Collection operations for enrollments."""
+
     @jwt_required()
     @admin_required
     @blp.response(200, EnrollmentListResponseSchema)
     def get(self):
+        """Return paginated enrollments with optional search by course or student."""
         page = request.args.get("page", 1, type=int)
         page_size = request.args.get("page_size", 10, type=int)
         search = request.args.get("search", "").strip()
@@ -72,6 +77,7 @@ class EnrollmentList(MethodView):
     @blp.arguments(EnrollmentSchema)
     @blp.response(201, EnrollmentSchema)
     def post(self, data):
+        """Create an enrollment for the authenticated student."""
         user_id = get_jwt_identity()
     
         # Verify student_id matches the authenticated user to prevent enrolling other users
@@ -86,10 +92,12 @@ class EnrollmentList(MethodView):
 
 @blp.route("/<int:enrollment_id>")
 class EnrollmentDetail(MethodView):
+    """Operations for a single enrollment."""
 
     @jwt_required()
     @blp.response(200, EnrollmentSchema)
     def get(self, enrollment_id):
+        """Get enrollment details if the caller owns the enrollment."""
         user_id = get_jwt_identity()
         enrollment = Enrollment.query.get_or_404(enrollment_id)
         if enrollment.student_id != user_id:
@@ -99,6 +107,7 @@ class EnrollmentDetail(MethodView):
     @jwt_required(fresh=True)
     @admin_required 
     def delete(self, enrollment_id):
+        """Delete an enrollment as an admin."""
         enrollment = Enrollment.query.get_or_404(enrollment_id)
         
         db.session.delete(enrollment)
@@ -107,9 +116,12 @@ class EnrollmentDetail(MethodView):
     
 @blp.route("/schedules")
 class EnrollmentSchedules(MethodView):
+    """Read schedules grouped by date across enrollments."""
+
     @jwt_required()
     @blp.response(200, GroupedScheduleSchema(many=True))
     def get(self):
+        """Return schedule items grouped by date for the caller or all users (admin)."""
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
         if not user:

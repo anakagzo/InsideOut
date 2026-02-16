@@ -1,12 +1,20 @@
+"""Helpers for generating unique user initials."""
+
 import re
 
 
 def _normalize_name_part(value):
+	"""Normalize a name component to uppercase alphanumeric characters."""
 	normalized = re.sub(r"[^A-Za-z0-9]", "", (value or "").strip())
 	return normalized.upper()
 
 
 def generate_unique_initials(first_name, last_name, user_model, exclude_user_id=None):
+	"""Generate unique initials from first/last names.
+
+	The strategy progressively combines letters from both names and falls back to
+	a numeric suffix when all progressive candidates already exist.
+	"""
 	first_part = _normalize_name_part(first_name)
 	last_part = _normalize_name_part(last_name)
 
