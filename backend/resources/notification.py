@@ -38,10 +38,10 @@ class EmailNotificationSettingsUpsert(MethodView):
                     setattr(settings, field, value)
             else:
                 # Create new settings
-                settings = EmailNotificationSettings(
-                    user_id=user_id,
-                    **settings_data
-                )
+                settings = EmailNotificationSettings()
+                settings.user_id = user_id
+                for field, value in settings_data.items():
+                    setattr(settings, field, value)
                 db.session.add(settings)
 
             db.session.commit()
@@ -66,6 +66,7 @@ class EmailNotificationSettingsGet(MethodView):
 
         # If no settings exist yet, return default values
         if not settings:
-            settings = EmailNotificationSettings(user_id=user_id)
+            settings = EmailNotificationSettings()
+            settings.user_id = user_id
 
         return settings

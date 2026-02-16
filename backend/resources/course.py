@@ -5,14 +5,27 @@ from models import Course, SavedCourse, Enrollment, Schedule, User
 from db import db
 from schemas import CourseSchema, CourseDetailSchema, CourseListResponseSchema, ScheduleSchema
 from utils.decorators import admin_required
+from utils.media_upload import MediaUploadService
 
 blp = Blueprint("Courses", "courses", url_prefix="/courses")
 
 
 from models import Review
 
-from flask import request
+from flask import request, current_app
 from sqlalchemy import func, or_
+
+
+def _default_course_image_url():
+    configured_default = current_app.config.get("DEFAULT_COURSE_IMAGE_URL")
+    if configured_default:
+        return configured_default
+
+    media_public_base_url = (current_app.config.get("MEDIA_PUBLIC_BASE_URL") or "").rstrip("/")
+    if media_public_base_url:
+        return f"{media_public_base_url}/defaults/course-default.png"
+
+    return "/media/defaults/course-default.png"
 
 @blp.route("/")
 class CourseList(MethodView):
@@ -51,10 +64,50 @@ class CourseList(MethodView):
 
     @jwt_required()
     @admin_required
-    @blp.arguments(CourseSchema)
     @blp.response(201, CourseSchema)
-    def post(self, data):
-        course = Course(**data)
+    def post(self):
+        is_multipart = (request.content_type or "").startswith("multipart/form-data")
+        if not is_multipart:
+            abort(400, message="Content-Type must be multipart/form-data.")
+
+        data = request.form.to_dict()
+
+        title = (data.get("title") or "").strip()
+        description = (data.get("description") or "").strip()
+        price = data.get("price")
+
+        if not title:
+            abort(400, message="title is required.")
+        if not description:
+            abort(400, message="description is required.")
+        if price in (None, ""):
+            abort(400, message="price is required.")
+
+        image_url = _default_course_image_url()
+        preview_video_url = None
+        media_service = MediaUploadService.from_app(current_app)
+
+        media_file = request.files.get("media")
+
+        try:
+            if media_file:
+                uploaded_url = media_service.save_course_media(media_file)
+                if media_file.mimetype and media_file.mimetype.startswith("image/"):
+                    image_url = uploaded_url
+                elif media_file.mimetype and media_file.mimetype.startswith("video/"):
+                    preview_video_url = uploaded_url
+        except ValueError as exc:
+            abort(400, message=str(exc))
+        except RuntimeError as exc:
+            abort(500, message=str(exc))
+
+        course = Course()
+        course.title = title
+        course.description = description
+        course.price = price
+        course.image_url = image_url
+        course.preview_video_url = preview_video_url
+
         db.session.add(course)
         db.session.commit()
         return course
@@ -85,13 +138,51 @@ class CourseAdminEdit(MethodView):
 
     @jwt_required(fresh=True)
     @admin_required
-    @blp.arguments(CourseSchema)
     @blp.response(200, CourseSchema)
-    def put(self, data, course_id):
+    def put(self, course_id):
         course = Course.query.get_or_404(course_id)
 
-        for key, value in data.items():
-            setattr(course, key, value)
+        is_multipart = (request.content_type or "").startswith("multipart/form-data")
+        if not is_multipart:
+            abort(400, message="Content-Type must be multipart/form-data.")
+
+        data = request.form.to_dict()
+
+        if "title" in data:
+            title = (data.get("title") or "").strip()
+            if not title:
+                abort(400, message="title cannot be empty.")
+            course.title = title
+
+        if "description" in data:
+            description = (data.get("description") or "").strip()
+            if not description:
+                abort(400, message="description cannot be empty.")
+            course.description = description
+
+        if "price" in data:
+            price = data.get("price")
+            if price in (None, ""):
+                abort(400, message="price cannot be empty.")
+            course.price = price
+
+        media_file = request.files.get("media")
+        media_service = MediaUploadService.from_app(current_app)
+
+        try:
+            if media_file:
+                uploaded_url = media_service.save_course_media(media_file)
+                if media_file.mimetype and media_file.mimetype.startswith("image/"):
+                    course.image_url = uploaded_url
+                elif media_file.mimetype and media_file.mimetype.startswith("video/"):
+                    course.preview_video_url = uploaded_url
+        except ValueError as exc:
+            abort(400, message=str(exc))
+        except RuntimeError as exc:
+            abort(500, message=str(exc))
+
+        if not course.image_url:
+            course.image_url = _default_course_image_url()
 
         db.session.commit()
         return course

@@ -18,6 +18,31 @@ class BaseConfig:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
 
+    MEDIA_STORAGE_DRIVER = os.getenv("MEDIA_STORAGE_DRIVER", "local")
+    MEDIA_LOCAL_UPLOAD_DIR = os.getenv("MEDIA_LOCAL_UPLOAD_DIR", "uploads")
+    MEDIA_BASE_URL = os.getenv("MEDIA_BASE_URL", "/media")
+    MEDIA_PUBLIC_BASE_URL = os.getenv("MEDIA_PUBLIC_BASE_URL", "")
+    DEFAULT_COURSE_IMAGE_URL = os.getenv("DEFAULT_COURSE_IMAGE_URL", "")
+
+    MAX_MEDIA_UPLOAD_MB = int(os.getenv("MAX_MEDIA_UPLOAD_MB", "50"))
+
+    ALLOWED_IMAGE_EXTENSIONS = set(
+        part.strip().lower()
+        for part in os.getenv("ALLOWED_IMAGE_EXTENSIONS", "jpg,jpeg,png,gif,webp").split(",")
+        if part.strip()
+    )
+    ALLOWED_VIDEO_EXTENSIONS = set(
+        part.strip().lower()
+        for part in os.getenv("ALLOWED_VIDEO_EXTENSIONS", "mp4,mov,avi,mkv,webm").split(",")
+        if part.strip()
+    )
+
+    MEDIA_BUCKET_NAME = os.getenv("MEDIA_BUCKET_NAME", "")
+    MEDIA_S3_REGION = os.getenv("MEDIA_S3_REGION", "")
+    MEDIA_S3_ENDPOINT_URL = os.getenv("MEDIA_S3_ENDPOINT_URL", "")
+    MEDIA_S3_ACCESS_KEY = os.getenv("MEDIA_S3_ACCESS_KEY", "")
+    MEDIA_S3_SECRET_KEY = os.getenv("MEDIA_S3_SECRET_KEY", "")
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True

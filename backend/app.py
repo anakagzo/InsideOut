@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_smorest import Api
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
@@ -94,6 +94,14 @@ def create_app(db_url=None):
             ),
             401,
         )
+
+    @app.get("/media/<path:filename>")
+    def serve_local_media(filename):
+        upload_dir = app.config.get("MEDIA_LOCAL_UPLOAD_DIR", "uploads")
+        if not os.path.isabs(upload_dir):
+            upload_dir = os.path.join(app.root_path, upload_dir)
+
+        return send_from_directory(upload_dir, filename)
 
 
     api.register_blueprint(UserBlueprint)

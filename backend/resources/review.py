@@ -43,11 +43,11 @@ class ReviewList(MethodView):
         if existing:
             abort(400, message="You already reviewed this course.")
 
-        review = Review(
-            **review_data,
-            student_id=student_id,
-            course_id=course_id
-        )
+        review = Review()
+        for field, value in review_data.items():
+            setattr(review, field, value)
+        review.user_id = student_id
+        review.course_id = course_id
 
         db.session.add(review)
         db.session.commit()
