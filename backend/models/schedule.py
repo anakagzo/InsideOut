@@ -4,7 +4,7 @@ class Schedule(db.Model):
     __tablename__ = "schedules"
 
     id = db.Column(db.Integer, primary_key=True)
-    enrollment_id = db.Column(db.Integer, db.ForeignKey("enrollments.id"), nullable=False)
+    enrollment_id = db.Column(db.Integer, db.ForeignKey("enrollments.id"), nullable=False, index=True)
 
     date = db.Column(db.Date, nullable=False)
     start_time = db.Column(db.Time, nullable=False)

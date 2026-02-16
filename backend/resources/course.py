@@ -1,9 +1,9 @@
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, verify_jwt_in_request, get_jwt_identity
-from models import Course, SavedCourse, Enrollment
+from models import Course, SavedCourse, Enrollment, Schedule, User
 from db import db
-from schemas import CourseSchema, CourseDetailSchema, CourseSingleResponseSchema, CourseListResponseSchema
+from schemas import CourseSchema, CourseDetailSchema, CourseListResponseSchema, ScheduleSchema
 from utils.decorators import admin_required
 
 blp = Blueprint("Courses", "courses", url_prefix="/courses")
@@ -125,10 +125,9 @@ class SaveCourse(MethodView):
         if existing:
             return {"message": "Course already saved."}, 200
 
-        saved = SavedCourse(
-            user_id=user_id,
-            course_id=course_id
-        )
+        saved = SavedCourse()
+        saved.user_id = user_id
+        saved.course_id = course_id
 
         db.session.add(saved)
         db.session.commit()
@@ -169,5 +168,30 @@ class SavedCoursesList(MethodView):
                 "total_pages": pagination.pages
             }
         }
+
+
+@blp.route("/<int:course_id>/schedules")
+class CourseUserSchedules(MethodView):
+
+    @jwt_required()
+    @blp.response(200, ScheduleSchema(many=True))
+    def get(self, course_id):
+        user_id = get_jwt_identity()
+        User.query.get_or_404(user_id)
+
+        Course.query.get_or_404(course_id)
+
+        schedules = (
+            Schedule.query
+            .join(Enrollment, Schedule.enrollment_id == Enrollment.id)
+            .filter(
+                Enrollment.course_id == course_id,
+                Enrollment.student_id == user_id,
+            )
+            .order_by(Schedule.date.asc(), Schedule.start_time.asc())
+            .all()
+        )
+
+        return schedules
 
 

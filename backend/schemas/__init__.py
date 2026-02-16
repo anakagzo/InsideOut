@@ -5,7 +5,7 @@ from schemas.availability import (
 	AvailabilityTimeSlotSchema,
 	AvailabilityUnavailableDateSchema,
 )
-from schemas.course import CourseSchema, CourseDetailSchema, CourseSingleResponseSchema, CourseListResponseSchema
+from schemas.course import CourseSchema, CourseDetailSchema, CourseListResponseSchema
 from schemas.enrollment import EnrollmentSchema, ScheduleItemSchema, GroupedScheduleSchema, EnrollmentListResponseSchema
 from schemas.notification import NotificationSchema
 from schemas.review import ReviewSchema, ReviewCreateSchema, TutorReplySchema

@@ -13,7 +13,7 @@ class Availability(db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
 
     day_of_week = db.Column(db.Integer, nullable=False)  # 1-7: Monday-Sunday
     month_start = db.Column(db.Integer, nullable=False, default=lambda: datetime.utcnow().month)
@@ -52,7 +52,7 @@ class AvailabilityUnavailableDate(db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     unavailable_date = db.Column(db.Date, nullable=False)
 
     user = db.relationship("User", back_populates="unavailable_dates")

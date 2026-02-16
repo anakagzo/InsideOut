@@ -17,6 +17,7 @@ from models import User as UserModel
 from schemas import UserSchema, UserRegisterSchema, UserUpdateSchema, UserLoginSchema, ChangePasswordSchema, UserListResponseSchema
 from blocklist import BLOCKLIST
 from utils.decorators import admin_required
+from utils.initials import generate_unique_initials
 
 blp = Blueprint("Users", __name__, description="Operations on users")
 
@@ -44,13 +45,19 @@ class UserRegister(MethodView):
         if UserModel.query.filter_by(email=email).first():
             abort(409, message="Email already exists.")
 
-        user = UserModel(
-            email=email,
-            password=pbkdf2_sha256.hash(user_data["password"]),
-            first_name=user_data.get("first_name"),
-            last_name=user_data.get("last_name"),
-            role="student",  # explicit default
+        user = UserModel()
+        user.email = email
+        user.password = pbkdf2_sha256.hash(user_data["password"])
+        user.first_name = user_data.get("first_name")
+        user.last_name = user_data.get("last_name")
+        user.initials = generate_unique_initials(
+            user_data.get("first_name"),
+            user_data.get("last_name"),
+            UserModel,
         )
+        user.phone_number = user_data.get("phone_number")
+        user.occupation = user_data.get("occupation")
+        user.role = "student"
 
         db.session.add(user)
         db.session.commit()
@@ -92,6 +99,14 @@ class UserSelf(MethodView):
 
         for field in user_data:
             setattr(user, field, user_data[field])
+
+        if "first_name" in user_data or "last_name" in user_data:
+            user.initials = generate_unique_initials(
+                user.first_name,
+                user.last_name,
+                UserModel,
+                exclude_user_id=user.id,
+            )
 
         db.session.commit()
         return user

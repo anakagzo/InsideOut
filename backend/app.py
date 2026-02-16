@@ -1,4 +1,4 @@
-from datetime import timedelta
+import os
 from flask import Flask, jsonify
 from flask_smorest import Api
 from flask_jwt_extended import JWTManager
@@ -6,6 +6,7 @@ from flask_migrate import Migrate
 
 from db import db
 from blocklist import BLOCKLIST
+from config import DevelopmentConfig, ProductionConfig
 
 from resources.user import blp as UserBlueprint
 from resources.review import blp as ReviewBlueprint
@@ -19,24 +20,17 @@ from resources.notification import blp as NotificationBlueprint
 
 def create_app(db_url=None):
     app = Flask(__name__)
-    app.config["API_TITLE"] = "Stores REST API"
-    app.config["API_VERSION"] = "v1"
-    app.config["OPENAPI_VERSION"] = "3.0.3"
-    app.config["OPENAPI_URL_PREFIX"] = "/"
-    app.config["OPENAPI_SWAGGER_UI_PATH"] = "/swagger-ui"
-    app.config[
-        "OPENAPI_SWAGGER_UI_URL"
-    ] = "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
-    app.config["SQLALCHEMY_DATABASE_URI"] = db_url or "sqlite:///data.db"
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["PROPAGATE_EXCEPTIONS"] = True
+
+    env = os.getenv("APP_ENV", "development").lower()
+    config_class = ProductionConfig if env == "production" else DevelopmentConfig
+    app.config.from_object(config_class)
+
+    if db_url:
+        app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+
     db.init_app(app)
     migrate = Migrate(app, db)
     api = Api(app)
-
-    app.config["JWT_SECRET_KEY"] = "jose"
-    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
-    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
 
     #JWTManager(app)
     jwt = JWTManager(app)

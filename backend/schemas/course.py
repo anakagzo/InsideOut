@@ -21,12 +21,15 @@ class CourseDetailSchema(CourseSchema):
             "id", "rating", "comment", "tutor_reply", "created_at")
             ), many=True, dump_only=True)
 
+'''
 class CourseSingleResponseSchema(CourseDetailSchema):
     is_enrolled = fields.Boolean(dump_only=True)
     schedules = fields.List(
         fields.Dict(), 
         dump_only=True
     )
+'''
+
 
 
 class CoursePaginationSchema(Schema):
