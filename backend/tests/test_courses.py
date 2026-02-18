@@ -7,7 +7,9 @@ def test_list_courses_is_public(client, create_course):
 
     response = client.get("/courses/")
     assert response.status_code == 200
-    assert len(response.get_json()) == 2
+    payload = response.get_json()
+    assert payload["pagination"]["total"] == 2
+    assert len(payload["data"]) == 2
 
 
 def test_admin_can_create_course_with_multipart(client, create_user, auth_headers):
