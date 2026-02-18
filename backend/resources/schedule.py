@@ -1,5 +1,6 @@
 """Schedule endpoints for reading and creating class sessions."""
 
+import logging
 from datetime import datetime, timezone
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
@@ -9,9 +10,11 @@ from schemas import ScheduleSchema
 from db import db
 
 blp = Blueprint("Schedules", "schedules", url_prefix="/schedules")
+logger = logging.getLogger(__name__)
 
 
 def _get_enrollment_or_404(enrollment_id):
+    logger.debug("Resolving enrollment for schedule", extra={"enrollment_id": enrollment_id})
     enrollment = db.session.get(Enrollment, enrollment_id)
     if not enrollment:
         abort(404, message="Enrollment not found.")
@@ -26,6 +29,7 @@ class ScheduleList(MethodView):
     def get(self):
         """Return all schedules linked to the authenticated user's enrollments."""
         user_id = get_jwt_identity()
+        logger.info("Schedule list requested", extra={"user_id": user_id})
         user = db.session.get(User, user_id)
         if not user:
             abort(404, message="User not found.")
@@ -46,6 +50,7 @@ class ScheduleList(MethodView):
     def post(self, data):
         """Create one or more schedules for a single enrollment owned by the caller."""
         user_id = get_jwt_identity()
+        logger.info("Schedule create requested", extra={"user_id": user_id, "count": len(data or [])})
         user = db.session.get(User, user_id)
         if not user:
             abort(404, message="User not found.")
@@ -80,6 +85,7 @@ class ScheduleList(MethodView):
         # Update enrollment status based on dates
         enrollment.status = "active" if datetime.now(timezone.utc).date() <= max_date else "completed"
         db.session.commit()
+        logger.info("Schedule create completed", extra={"user_id": user_id, "enrollment_id": enrollment_id, "count": len(schedules)})
         return schedules
 
 @blp.route("/<int:schedule_id>")
@@ -91,6 +97,7 @@ class ScheduleDetail(MethodView):
     def get(self, schedule_id):
         """Return one schedule if it belongs to an enrollment owned by the caller."""
         user_id = get_jwt_identity()
+        logger.info("Schedule detail requested", extra={"schedule_id": schedule_id, "user_id": user_id})
         user = db.session.get(User, user_id)
         if not user:
             abort(404, message="User not found.")

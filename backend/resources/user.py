@@ -1,5 +1,6 @@
 """User authentication and profile management endpoints."""
 
+import logging
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,9 +23,11 @@ from utils.decorators import admin_required
 from utils.initials import generate_unique_initials
 
 blp = Blueprint("Users", __name__, description="Operations on users")
+logger = logging.getLogger(__name__)
 
 
 def _get_user_or_404(user_id):
+    logger.debug("Resolving user", extra={"user_id": user_id})
     user = db.session.get(UserModel, user_id)
     if not user:
         abort(404, message="User not found.")
@@ -39,12 +42,14 @@ class Login(MethodView):
     @blp.arguments(UserLoginSchema)
     def post(self, data):
         """Validate credentials and return access/refresh tokens."""
+        logger.info("Login requested", extra={"email": data["email"].lower().strip()})
         user = UserModel.query.filter_by(email=data["email"].lower().strip()).first()
         if not user or not pbkdf2_sha256.verify(data["password"], user.password):
             abort(401, message="Invalid credentials")
 
         access = create_access_token(identity=user.id, additional_claims={"role": user.role}, fresh=True )
         refresh = create_refresh_token(identity=user.id)
+        logger.info("Login successful", extra={"user_id": user.id})
         return {"access_token": access, "refresh_token": refresh}
 
 
@@ -56,6 +61,7 @@ class UserRegister(MethodView):
     def post(self, user_data):
         """Register a student and return initial token pair."""
         email = user_data["email"].lower().strip()
+        logger.info("Registration requested", extra={"email": email})
 
         if UserModel.query.filter_by(email=email).first():
             abort(409, message="Email already exists.")
@@ -76,6 +82,7 @@ class UserRegister(MethodView):
 
         db.session.add(user)
         db.session.commit()
+        logger.info("Registration successful", extra={"user_id": user.id})
 
         access = create_access_token(identity=user.id)
         refresh = create_refresh_token(identity=user.id)
@@ -94,6 +101,7 @@ class UserLogout(MethodView):
     @jwt_required()
     def post(self):
         """Revoke current JWT by adding its JTI to the blocklist."""
+        logger.info("Logout requested")
         jti = get_jwt()["jti"]
         BLOCKLIST.add(jti)
         return {"message": "Successfully logged out"}, 200
@@ -108,6 +116,7 @@ class UserSelf(MethodView):
     def get(self):
         """Return the authenticated user's profile."""
         user_id = get_jwt_identity()
+        logger.info("Profile read requested", extra={"user_id": user_id})
         return _get_user_or_404(user_id)
 
     @jwt_required()
@@ -116,6 +125,7 @@ class UserSelf(MethodView):
     def put(self, user_data):
         """Update profile fields for the authenticated user."""
         user_id = get_jwt_identity()
+        logger.info("Profile update requested", extra={"user_id": user_id})
         user = _get_user_or_404(user_id)
 
         for field in user_data:
@@ -130,6 +140,7 @@ class UserSelf(MethodView):
             )
 
         db.session.commit()
+        logger.info("Profile update completed", extra={"user_id": user_id})
         return user
    
 
@@ -141,10 +152,12 @@ class UserAdmin(MethodView):
     @admin_required
     def delete(self, user_id):
         """Delete a user as an admin."""
+        logger.info("Admin delete user requested", extra={"target_user_id": user_id})
         user = _get_user_or_404(user_id)
 
         db.session.delete(user)
         db.session.commit()
+        logger.info("Admin deleted user", extra={"target_user_id": user_id})
 
         return {"message": "User deleted."}, 200    
 
@@ -161,6 +174,10 @@ class UserList(MethodView):
         page_size = request.args.get("page_size", 10, type=int)
 
         search = request.args.get("search", "").strip()
+        logger.info(
+            "User list requested",
+            extra={"page": page, "page_size": page_size, "has_search": bool(search)},
+        )
         normalized_search = " ".join(search.split())
 
         query = UserModel.query.filter(UserModel.role != "admin")
@@ -211,6 +228,7 @@ class UserChangePassword(MethodView):
     def put(self, user_data):
         """Validate old password and persist the new password hash."""
         user_id = int(get_jwt_identity())
+        logger.info("Password change requested", extra={"user_id": user_id})
         user = _get_user_or_404(user_id)
         if not pbkdf2_sha256.verify(user_data["old_password"], user.password):
             abort(401, message="Invalid credentials.")
@@ -218,6 +236,7 @@ class UserChangePassword(MethodView):
         user.password = pbkdf2_sha256.hash(user_data["new_password"])
         db.session.add(user)
         db.session.commit()
+        logger.info("Password changed", extra={"user_id": user_id})
 
         return {"message": "Password changed successfully."}, 200
 
@@ -229,6 +248,7 @@ class TokenRefresh(MethodView):
     def post(self):
         """Issue new access and refresh tokens, revoking the previous refresh token."""
         identity = get_jwt_identity()
+        logger.info("Token refresh requested", extra={"user_id": identity})
         claims = get_jwt()
 
         jti = get_jwt()["jti"]
@@ -241,6 +261,7 @@ class TokenRefresh(MethodView):
         )
 
         new_refresh = create_refresh_token(identity=identity)
+        logger.info("Token refresh completed", extra={"user_id": identity})
 
         return {
             "access_token": new_access,

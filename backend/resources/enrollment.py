@@ -1,5 +1,6 @@
 """Enrollment endpoints for listing, creating, deleting, and schedule grouping."""
 
+import logging
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -13,9 +14,11 @@ from sqlalchemy import or_, case
 from flask import request
 
 blp = Blueprint("Enrollments", "enrollments", url_prefix="/enrollments")
+logger = logging.getLogger(__name__)
 
 
 def _get_enrollment_or_404(enrollment_id):
+    logger.debug("Resolving enrollment", extra={"enrollment_id": enrollment_id})
     enrollment = db.session.get(Enrollment, enrollment_id)
     if not enrollment:
         abort(404, message="Enrollment not found.")
@@ -34,6 +37,10 @@ class EnrollmentList(MethodView):
         page = request.args.get("page", 1, type=int)
         page_size = request.args.get("page_size", 10, type=int)
         search = request.args.get("search", "").strip()
+        logger.info(
+            "Enrollment list requested",
+            extra={"page": page, "page_size": page_size, "has_search": bool(search)},
+        )
 
         normalized_search = " ".join(search.split())
         
@@ -86,6 +93,7 @@ class EnrollmentList(MethodView):
     def post(self, data):
         """Create an enrollment for the authenticated student."""
         user_id = get_jwt_identity()
+        logger.info("Enrollment create requested", extra={"user_id": user_id})
     
         # Verify student_id matches the authenticated user to prevent enrolling other users
         if data.get("student_id") != user_id:
@@ -94,6 +102,7 @@ class EnrollmentList(MethodView):
         enrollment = Enrollment(**data)
         db.session.add(enrollment)
         db.session.commit()
+        logger.info("Enrollment created", extra={"enrollment_id": enrollment.id, "user_id": user_id})
         return enrollment
     
 
@@ -106,6 +115,7 @@ class EnrollmentDetail(MethodView):
     def get(self, enrollment_id):
         """Get enrollment details if the caller owns the enrollment."""
         user_id = get_jwt_identity()
+        logger.info("Enrollment detail requested", extra={"enrollment_id": enrollment_id, "user_id": user_id})
         enrollment = _get_enrollment_or_404(enrollment_id)
         if enrollment.student_id != user_id:
             abort(403, message="Access denied.")
@@ -115,10 +125,12 @@ class EnrollmentDetail(MethodView):
     @admin_required 
     def delete(self, enrollment_id):
         """Delete an enrollment as an admin."""
+        logger.info("Enrollment delete requested", extra={"enrollment_id": enrollment_id})
         enrollment = _get_enrollment_or_404(enrollment_id)
         
         db.session.delete(enrollment)
         db.session.commit()
+        logger.info("Enrollment deleted", extra={"enrollment_id": enrollment_id})
         return {"message": "Enrollment deleted successfully."}, 200
     
 @blp.route("/schedules")
@@ -130,6 +142,7 @@ class EnrollmentSchedules(MethodView):
     def get(self):
         """Return schedule items grouped by date for the caller or all users (admin)."""
         user_id = get_jwt_identity()
+        logger.info("Enrollment schedules requested", extra={"user_id": user_id})
         user = db.session.get(User, user_id)
         if not user:
             abort(404, message="User not found.")

@@ -1,11 +1,15 @@
 """Helpers for generating unique user initials."""
 
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_name_part(value):
 	"""Normalize a name component to uppercase alphanumeric characters."""
 	normalized = re.sub(r"[^A-Za-z0-9]", "", (value or "").strip())
+	logger.debug("Normalized name part", extra={"has_value": bool(value), "result_length": len(normalized)})
 	return normalized.upper()
 
 
@@ -17,6 +21,7 @@ def generate_unique_initials(first_name, last_name, user_model, exclude_user_id=
 	"""
 	first_part = _normalize_name_part(first_name)
 	last_part = _normalize_name_part(last_name)
+	logger.info("Generating initials", extra={"exclude_user_id": exclude_user_id})
 
 	if not first_part:
 		first_part = "X"
@@ -39,6 +44,7 @@ def generate_unique_initials(first_name, last_name, user_model, exclude_user_id=
 
 	for candidate in candidates:
 		if candidate not in existing_initials:
+			logger.debug("Initials candidate selected", extra={"candidate": candidate})
 			return candidate
 
 	base_candidate = candidates[-1]
@@ -55,4 +61,5 @@ def generate_unique_initials(first_name, last_name, user_model, exclude_user_id=
 	while f"{base_candidate}{suffix}" in suffix_matches:
 		suffix += 1
 
+	logger.debug("Initials suffix selected", extra={"base_candidate": base_candidate, "suffix": suffix})
 	return f"{base_candidate}{suffix}"

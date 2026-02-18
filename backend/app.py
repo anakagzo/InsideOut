@@ -1,4 +1,5 @@
 import os
+import logging
 from flask import Flask, jsonify, send_from_directory
 from flask_smorest import Api
 from flask_jwt_extended import JWTManager
@@ -17,6 +18,28 @@ from resources.availability import blp as AvailabilityBlueprint
 from resources.notification import blp as NotificationBlueprint
 
 
+def _configure_logging(app):
+    level_name = str(app.config.get("LOG_LEVEL", "INFO")).upper()
+    log_level = getattr(logging, level_name, logging.INFO)
+    log_format = app.config.get(
+        "LOG_FORMAT",
+        "%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
+    date_format = app.config.get("LOG_DATE_FORMAT", "%Y-%m-%d %H:%M:%S")
+
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        logging.basicConfig(level=log_level, format=log_format, datefmt=date_format)
+    else:
+        root_logger.setLevel(log_level)
+        formatter = logging.Formatter(log_format, datefmt=date_format)
+        for handler in root_logger.handlers:
+            handler.setLevel(log_level)
+            handler.setFormatter(formatter)
+
+    app.logger.setLevel(log_level)
+    app.logger.info("Logging configured", extra={"log_level": level_name})
+
 
 def create_app(db_url=None):
     app = Flask(__name__)
@@ -24,6 +47,7 @@ def create_app(db_url=None):
     env = os.getenv("APP_ENV", "development").lower()
     config_class = ProductionConfig if env == "production" else DevelopmentConfig
     app.config.from_object(config_class)
+    _configure_logging(app)
 
     if db_url:
         app.config["SQLALCHEMY_DATABASE_URI"] = db_url

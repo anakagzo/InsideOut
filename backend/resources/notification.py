@@ -1,5 +1,6 @@
 """Endpoints for managing email notification preferences."""
 
+import logging
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -15,6 +16,7 @@ blp = Blueprint(
     url_prefix="/notification-settings",
     description="Operations on email notification settings"
 )
+logger = logging.getLogger(__name__)
 
 @blp.route("/")
 class EmailNotificationSettingsUpsert(MethodView):
@@ -29,6 +31,7 @@ class EmailNotificationSettingsUpsert(MethodView):
         """
 
         user_id = get_jwt_identity()
+        logger.info("Notification settings upsert requested", extra={"user_id": user_id})
 
         settings = EmailNotificationSettings.query.filter_by(
             user_id=user_id
@@ -48,9 +51,11 @@ class EmailNotificationSettingsUpsert(MethodView):
                 db.session.add(settings)
 
             db.session.commit()
+            logger.info("Notification settings saved", extra={"user_id": user_id})
 
         except SQLAlchemyError:
             db.session.rollback()
+            logger.exception("Notification settings save failed", extra={"user_id": user_id})
             abort(500, message="Failed to save notification settings.")
 
         return settings
@@ -64,6 +69,7 @@ class EmailNotificationSettingsGet(MethodView):
     def get(self):
         """Return persisted settings or model defaults when not configured yet."""
         user_id = get_jwt_identity()
+        logger.info("Notification settings read requested", extra={"user_id": user_id})
 
         settings = EmailNotificationSettings.query.filter_by(
             user_id=user_id

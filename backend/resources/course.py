@@ -4,6 +4,7 @@ This module exposes listing, creation, update, save, and schedule-retrieval
 operations for courses.
 """
 
+import logging
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, verify_jwt_in_request, get_jwt_identity
@@ -20,6 +21,8 @@ from models import Review
 
 from flask import request, current_app
 from sqlalchemy import func, or_
+
+logger = logging.getLogger(__name__)
 
 
 def _default_course_image_url():
@@ -39,6 +42,7 @@ def _default_course_image_url():
 
 
 def _get_course_or_404(course_id):
+    logger.debug("Resolving course", extra={"course_id": course_id})
     course = db.session.get(Course, course_id)
     if not course:
         abort(404, message="Course not found.")
@@ -46,6 +50,7 @@ def _get_course_or_404(course_id):
 
 
 def _get_user_or_404(user_id):
+    logger.debug("Resolving user in course resource", extra={"user_id": user_id})
     user = db.session.get(User, user_id)
     if not user:
         abort(404, message="User not found.")
@@ -64,6 +69,10 @@ class CourseList(MethodView):
         # custom query parameters for search and filtering
         search = request.args.get("search", "").strip()
         type_filter = request.args.get("type")
+        logger.info(
+            "Course list requested",
+            extra={"page": page, "page_size": page_size, "type_filter": type_filter, "has_search": bool(search)},
+        )
 
         query = Course.query
 
@@ -111,6 +120,7 @@ class CourseList(MethodView):
     @blp.response(201, CourseSchema)
     def post(self):
         """Create a course from multipart form data and optional preview media."""
+        logger.info("Course create requested")
         is_multipart = (request.content_type or "").startswith("multipart/form-data")
         if not is_multipart:
             abort(400, message="Content-Type must be multipart/form-data.")
@@ -155,6 +165,7 @@ class CourseList(MethodView):
 
         db.session.add(course)
         db.session.commit()
+        logger.info("Course created", extra={"course_id": course.id})
         return course
 
 
@@ -165,6 +176,7 @@ class CourseDetail(MethodView):
     @blp.response(200, CourseDetailSchema)
     def get(self, course_id):
         """Retrieve a course with latest reviews attached."""
+        logger.info("Course detail requested", extra={"course_id": course_id})
 
         course = _get_course_or_404(course_id)
 
@@ -207,6 +219,7 @@ class CourseAdminEdit(MethodView):
     @blp.response(200, CourseSchema)
     def put(self, course_id):
         """Update a course using multipart form fields and optional media upload."""
+        logger.info("Course update requested", extra={"course_id": course_id})
         course = _get_course_or_404(course_id)
 
         is_multipart = (request.content_type or "").startswith("multipart/form-data")
@@ -252,6 +265,7 @@ class CourseAdminEdit(MethodView):
             course.image_url = _default_course_image_url()
 
         db.session.commit()
+        logger.info("Course updated", extra={"course_id": course_id})
         return course
 
 
@@ -259,10 +273,12 @@ class CourseAdminEdit(MethodView):
     @admin_required
     def delete(self, course_id):
         """Delete a course."""
+        logger.info("Course delete requested", extra={"course_id": course_id})
         course = _get_course_or_404(course_id)
 
         db.session.delete(course)
         db.session.commit()
+        logger.info("Course deleted", extra={"course_id": course_id})
 
         return {"message": "Course deleted successfully."}, 200
     
@@ -275,6 +291,7 @@ class SaveCourse(MethodView):
     def post(self, course_id):
         """Save a course for the current user if not already saved."""
         user_id = get_jwt_identity()
+        logger.info("Save course requested", extra={"course_id": course_id, "user_id": user_id})
 
         _get_course_or_404(course_id)
 
@@ -292,6 +309,7 @@ class SaveCourse(MethodView):
 
         db.session.add(saved)
         db.session.commit()
+        logger.info("Course saved", extra={"course_id": course_id, "user_id": user_id})
 
         return {"message": "Course saved successfully."}, 201
     
@@ -308,6 +326,7 @@ class SavedCoursesList(MethodView):
         page_size = request.args.get("page_size", 10, type=int)
 
         user_id = get_jwt_identity()
+        logger.info("Saved courses requested", extra={"user_id": user_id, "page": page, "page_size": page_size})
 
         query = (
             Course.query
@@ -342,6 +361,7 @@ class CourseUserSchedules(MethodView):
     def get(self, course_id):
         """Return schedules for the caller scoped to the given course."""
         user_id = get_jwt_identity()
+        logger.info("Course user schedules requested", extra={"course_id": course_id, "user_id": user_id})
         _get_user_or_404(user_id)
 
         _get_course_or_404(course_id)

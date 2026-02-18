@@ -6,8 +6,11 @@ across local and S3-compatible providers.
 
 import os
 import importlib
+import logging
 from uuid import uuid4
 from werkzeug.utils import secure_filename
+
+logger = logging.getLogger(__name__)
 
 
 class MediaUploadService:
@@ -28,6 +31,7 @@ class MediaUploadService:
             "ALLOWED_VIDEO_EXTENSIONS",
             {"mp4", "mov", "avi", "mkv", "webm"},
         )
+        logger.info("Media upload service initialized", extra={"driver": self.driver, "max_upload_mb": self.max_upload_mb})
 
     @classmethod
     def from_app(cls, app):
@@ -38,6 +42,7 @@ class MediaUploadService:
         """Validate and persist a course media file, returning its public URL."""
         if file_storage is None:
             return None
+        logger.info("Course media save requested")
 
         file_name = secure_filename(file_storage.filename or "")
         if not file_name:
@@ -48,6 +53,7 @@ class MediaUploadService:
         self._validate_size(file_storage)
 
         storage_key = self._build_storage_key("courses", media_type, extension)
+        logger.debug("Generated media storage key", extra={"storage_key": storage_key, "driver": self.driver})
 
         if self.driver == "local":
             return self._save_local(file_storage, storage_key)
@@ -72,8 +78,10 @@ class MediaUploadService:
         is_video = extension in self.allowed_video_extensions and normalized_mimetype.startswith("video/")
 
         if is_image:
+            logger.debug("Resolved media type", extra={"media_type": "images", "extension": extension})
             return "images"
         if is_video:
+            logger.debug("Resolved media type", extra={"media_type": "videos", "extension": extension})
             return "videos"
 
         raise ValueError("Only valid image or video files are allowed.")
@@ -88,6 +96,7 @@ class MediaUploadService:
 
         if file_size > self.max_upload_bytes:
             raise ValueError(f"File too large. Max allowed size is {self.max_upload_mb}MB.")
+        logger.debug("Validated media size", extra={"file_size": file_size})
 
         if current_position:
             stream.seek(0)
@@ -110,6 +119,7 @@ class MediaUploadService:
 
         file_storage.stream.seek(0)
         file_storage.save(full_path)
+        logger.info("Media saved to local storage", extra={"path": full_path})
 
         media_base_url = self.app.config.get("MEDIA_BASE_URL", "/media").rstrip("/")
         return f"{media_base_url}/{storage_key}"
@@ -148,6 +158,7 @@ class MediaUploadService:
                 "ContentType": file_storage.mimetype or "application/octet-stream",
             },
         )
+        logger.info("Media uploaded to S3-compatible storage", extra={"bucket": bucket, "storage_key": storage_key})
 
         public_base_url = self.app.config.get("MEDIA_PUBLIC_BASE_URL")
         if public_base_url:

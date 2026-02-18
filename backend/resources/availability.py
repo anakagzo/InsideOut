@@ -1,5 +1,6 @@
 """Availability management endpoints for admin users."""
 
+import logging
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -10,9 +11,11 @@ from db import db
 from utils.decorators import admin_required
 
 blp = Blueprint("Availability", "availability", url_prefix="/availability")
+logger = logging.getLogger(__name__)
 
 
 def _get_user_or_404(user_id):
+    logger.debug("Resolving user for availability", extra={"user_id": user_id})
     user = db.session.get(User, user_id)
     if not user:
         abort(404, message="User not found.")
@@ -29,6 +32,7 @@ class AvailabilityList(MethodView):
     def get(self):
         """Return the current availability window, time slots, and unavailable dates."""
         user_id = int(get_jwt_identity())
+        logger.info("Availability read requested", extra={"user_id": user_id})
         admin_user = _get_user_or_404(user_id)
 
         availability_days = (
@@ -61,6 +65,7 @@ class AvailabilityList(MethodView):
         """Replace availability data using an upsert/diff strategy per weekday/date."""
         # Identify caller and enforce admin-only write access.
         user_id = int(get_jwt_identity())
+        logger.info("Availability upsert requested", extra={"user_id": user_id})
         admin_user = _get_user_or_404(user_id)
 
         if admin_user.role != "admin":
@@ -166,6 +171,7 @@ class AvailabilityList(MethodView):
 
         # Commit once so all changes succeed or fail together.
         db.session.commit()
+        logger.info("Availability upsert completed", extra={"user_id": user_id})
 
         # Return canonical, ordered state after persistence.
         availability_days = (

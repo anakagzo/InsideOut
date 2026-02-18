@@ -14,6 +14,13 @@ class BaseConfig:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     PROPAGATE_EXCEPTIONS = True
 
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FORMAT = os.getenv(
+        "LOG_FORMAT",
+        "%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
+    LOG_DATE_FORMAT = os.getenv("LOG_DATE_FORMAT", "%Y-%m-%d %H:%M:%S")
+
     JWT_SECRET_KEY = os.getenv(
         "JWT_SECRET_KEY",
         "insideout-dev-jwt-secret-key-change-this-in-production-2026",
