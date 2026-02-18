@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Clock, Lock, Save, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,19 +7,27 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  changeCurrentUserPassword,
+  fetchAvailability,
+  fetchNotificationSettings,
+  upsertAvailability,
+  upsertNotificationSettings,
+} from "@/store/thunks";
 
 interface SettingsPanelProps {
   isAdmin: boolean;
 }
 
 const DAYS_OF_WEEK = [
-  { value: "0", label: "Sunday" },
   { value: "1", label: "Monday" },
   { value: "2", label: "Tuesday" },
   { value: "3", label: "Wednesday" },
   { value: "4", label: "Thursday" },
   { value: "5", label: "Friday" },
   { value: "6", label: "Saturday" },
+  { value: "7", label: "Sunday" },
 ];
 
 const MONTHS = [
@@ -38,15 +46,18 @@ const MONTHS = [
 ];
 
 export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
-  // Notification settings state
+  const dispatch = useAppDispatch();
+  const currentUser = useAppSelector((state) => state.users.currentUser);
+  const notificationSettings = useAppSelector((state) => state.notificationSettings.current);
+  const availabilityConfig = useAppSelector((state) => state.availability.current);
+
   const [notifications, setNotifications] = useState({
     successfulPayment: true,
     schedulingOnboarding: true,
-    meetingReminder: true,
     newCourseAdded: false,
+    meetingReminder: true,
   });
 
-  // Availability state
   const [availabilitySlots, setAvailabilitySlots] = useState([
     { id: "1", day: "1", startTime: "09:00", endTime: "17:00", months: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"] },
     { id: "2", day: "3", startTime: "09:00", endTime: "17:00", months: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"] },
@@ -56,15 +67,78 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
   // Date overrides
   const [dateOverrides, setDateOverrides] = useState<{ id: string; date: string; available: boolean }[]>([]);
 
-  // Password state
   const [passwords, setPasswords] = useState({
     current: "",
     new: "",
     confirm: "",
   });
 
-  const handleNotificationSave = () => {
-    toast.success("Notification settings saved!");
+  useEffect(() => {
+    dispatch(fetchNotificationSettings());
+    if (isAdmin) {
+      dispatch(fetchAvailability());
+    }
+  }, [dispatch, isAdmin]);
+
+  useEffect(() => {
+    if (!notificationSettings) {
+      return;
+    }
+
+    setNotifications({
+      successfulPayment: notificationSettings.notify_on_new_payment,
+      schedulingOnboarding: notificationSettings.notify_on_schedule_change,
+      newCourseAdded: notificationSettings.notify_on_new_course,
+      meetingReminder: notificationSettings.notify_on_meeting_reminder,
+    });
+  }, [notificationSettings]);
+
+  useEffect(() => {
+    if (!availabilityConfig || !isAdmin) {
+      return;
+    }
+
+    const monthStart = availabilityConfig.month_start ?? 1;
+    const monthEnd = availabilityConfig.month_end ?? monthStart;
+    const months = Array.from({ length: monthEnd - monthStart + 1 }, (_, index) => String(monthStart + index));
+
+    const slots = availabilityConfig.availability.flatMap((dayItem) =>
+      (dayItem.time_slots || []).map((slot, index) => ({
+        id: `${dayItem.day_of_week}-${index}-${slot.start_time}`,
+        day: String(dayItem.day_of_week),
+        startTime: slot.start_time.slice(0, 5),
+        endTime: slot.end_time.slice(0, 5),
+        months,
+      })),
+    );
+
+    if (slots.length > 0) {
+      setAvailabilitySlots(slots);
+    }
+
+    const overrides = (availabilityConfig.unavailable_dates || []).map((item, index) => ({
+      id: `${item.unavailable_date}-${index}`,
+      date: item.unavailable_date,
+      available: false,
+    }));
+    setDateOverrides(overrides);
+  }, [availabilityConfig, isAdmin]);
+
+  const handleNotificationSave = async () => {
+    try {
+      await dispatch(
+        upsertNotificationSettings({
+          user_id: currentUser?.id,
+          notify_on_new_payment: notifications.successfulPayment,
+          notify_on_schedule_change: notifications.schedulingOnboarding,
+          notify_on_new_course: notifications.newCourseAdded,
+          notify_on_meeting_reminder: notifications.meetingReminder,
+        }),
+      ).unwrap();
+      toast.success("Notification settings saved!");
+    } catch {
+      toast.error("Unable to save notification settings.");
+    }
   };
 
   const addAvailabilitySlot = () => {
@@ -89,11 +163,43 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
     setDateOverrides(dateOverrides.filter((o) => o.id !== id));
   };
 
-  const handleAvailabilitySave = () => {
-    toast.success("Availability settings saved!");
+  const handleAvailabilitySave = async () => {
+    try {
+      const allMonths = availabilitySlots.flatMap((slot) => slot.months.map((month) => Number(month)));
+      const currentMonth = new Date().getMonth() + 1;
+      const monthStart = allMonths.length > 0 ? Math.min(...allMonths) : currentMonth;
+      const monthEnd = allMonths.length > 0 ? Math.max(...allMonths) : monthStart;
+
+      const groupedByDay = new Map<number, Array<{ start_time: string; end_time: string }>>();
+
+      availabilitySlots.forEach((slot) => {
+        const day = Number(slot.day);
+        const current = groupedByDay.get(day) || [];
+        current.push({
+          start_time: `${slot.startTime}:00`,
+          end_time: `${slot.endTime}:00`,
+        });
+        groupedByDay.set(day, current);
+      });
+
+      const payload = {
+        month_start: monthStart,
+        month_end: monthEnd,
+        availability: Array.from(groupedByDay.entries()).map(([day_of_week, time_slots]) => ({
+          day_of_week,
+          time_slots,
+        })),
+        unavailable_dates: dateOverrides.filter((item) => !item.available && Boolean(item.date)).map((item) => item.date),
+      };
+
+      await dispatch(upsertAvailability(payload)).unwrap();
+      toast.success("Availability settings saved!");
+    } catch {
+      toast.error("Unable to save availability settings.");
+    }
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     if (passwords.new !== passwords.confirm) {
       toast.error("New passwords do not match!");
       return;
@@ -102,8 +208,18 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
       toast.error("Password must be at least 8 characters!");
       return;
     }
-    toast.success("Password changed successfully!");
-    setPasswords({ current: "", new: "", confirm: "" });
+    try {
+      await dispatch(
+        changeCurrentUserPassword({
+          old_password: passwords.current,
+          new_password: passwords.new,
+        }),
+      ).unwrap();
+      toast.success("Password changed successfully!");
+      setPasswords({ current: "", new: "", confirm: "" });
+    } catch {
+      toast.error("Unable to change password.");
+    }
   };
 
   return (

@@ -73,6 +73,18 @@ class ScheduleList(MethodView):
         # Todo: generate zoom link here based on the schedule details and save it to the database
         schedules = []
         for item in data:
+            overlapping = (
+                Schedule.query
+                .filter(
+                    Schedule.date == item["date"],
+                    Schedule.start_time < item["end_time"],
+                    Schedule.end_time > item["start_time"],
+                )
+                .first()
+            )
+            if overlapping:
+                abort(409, message="Selected time overlaps an existing scheduled class.")
+
             schedule = Schedule(**item)
             db.session.add(schedule)
             schedules.append(schedule)

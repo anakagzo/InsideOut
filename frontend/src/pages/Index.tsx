@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight, Play, Award } from "lucide-react";
@@ -6,12 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { CourseCard } from "@/components/CourseCard";
-import { courses } from "@/lib/mock-data";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchCourses } from "@/store/thunks";
 import heroImage from "@/assets/hero-image.jpg";
 import tutorPortrait from "@/assets/tutor-portrait.jpg";
 
 const Index = () => {
+  const dispatch = useAppDispatch();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const coursesList = useAppSelector((state) => state.courses.list);
+  const listStatus = useAppSelector((state) => state.courses.requests.list.status);
+
+  useEffect(() => {
+    dispatch(fetchCourses({ page: 1, page_size: 8 }));
+  }, [dispatch]);
+
+  const popularCourses = (coursesList?.data ?? []).map((course) => ({
+    id: course.id,
+    title: course.title,
+    description: course.description,
+    image: course.image_url,
+    category: "Course",
+    rating: course.average_rating,
+    reviewCount: 0,
+    price: Number(course.price),
+  }));
 
   const scroll = (dir: "left" | "right") => {
     if (scrollRef.current) {
@@ -80,7 +99,7 @@ const Index = () => {
           </motion.div>
 
           <div ref={scrollRef} className="flex gap-5 overflow-x-auto hide-scrollbar pb-4">
-            {courses.map((course, i) => (
+            {popularCourses.map((course, i) => (
               <motion.div
                 key={course.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -91,6 +110,12 @@ const Index = () => {
                 <CourseCard course={course} />
               </motion.div>
             ))}
+            {(listStatus === "idle" || listStatus === "loading") && (
+              <p className="text-muted-foreground py-8">Loading courses...</p>
+            )}
+            {listStatus === "succeeded" && popularCourses.length === 0 && (
+              <p className="text-muted-foreground py-8">No courses available yet.</p>
+            )}
           </div>
 
           <div className="mt-8 text-center">

@@ -50,3 +50,17 @@ class AvailabilitySchema(Schema):
     month_end = fields.Int(dump_only=True)
     availability = fields.List(fields.Nested(AvailabilityDaySchema), dump_only=True)
     unavailable_dates = fields.List(fields.Nested(AvailabilityUnavailableDateSchema), dump_only=True)
+
+
+class AvailabilityBookedSlotSchema(Schema):
+    date = fields.Date(required=True)
+    start_time = fields.Time(required=True)
+    end_time = fields.Time(required=True)
+
+
+class PublicAvailabilitySchema(Schema):
+    month_start = fields.Int(allow_none=True)
+    month_end = fields.Int(allow_none=True)
+    availability = fields.List(fields.Nested(AvailabilityDaySchema), dump_only=True)
+    unavailable_dates = fields.List(fields.Date(), dump_only=True)
+    booked_slots = fields.List(fields.Nested(AvailabilityBookedSlotSchema), dump_only=True)

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Users, Calendar, Settings, User, LogOut, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,20 +13,91 @@ import { SchedulesTab } from "@/components/account/SchedulesTab";
 import { UsersTab } from "@/components/account/UsersTab";
 import { ProfilePanel } from "@/components/account/ProfilePanel";
 import { SettingsPanel } from "@/components/account/SettingsPanel";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  fetchAvailability,
+  fetchCurrentUser,
+  fetchNotificationSettings,
+  fetchUsers,
+  logoutUser,
+} from "@/store/thunks";
+import { toast } from "sonner";
 
 const AccountPage = () => {
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [sidebarView, setSidebarView] = useState<"menu" | "profile" | "settings">("menu");
-  
-  // Mock current user - in real app this would come from auth context
-  const isAdmin = true; // Toggle to test admin vs student view
-  const currentUserId = isAdmin ? "3" : "1"; // Admin or Jane Doe
 
-  const handleLogout = () => {
+  const currentUser = useAppSelector((state) => state.users.currentUser);
+  const currentUserStatus = useAppSelector((state) => state.users.requests.fetchMe.status);
+
+  const isAdmin = currentUser?.role === "admin";
+  const currentUserId = currentUser ? String(currentUser.id) : "";
+
+  const displayInitials = useMemo(() => {
+    if (currentUser?.initials) return currentUser.initials;
+    if (currentUser?.first_name && currentUser?.last_name) {
+      return `${currentUser.first_name[0]}${currentUser.last_name[0]}`.toUpperCase();
+    }
+    return "--";
+  }, [currentUser]);
+
+  const displayName = currentUser
+    ? `${currentUser.first_name || ""} ${currentUser.last_name || ""}`.trim()
+    : "Loading...";
+
+  useEffect(() => {
+    dispatch(fetchCurrentUser());
+    dispatch(fetchNotificationSettings());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    if (currentUser.role === "admin") {
+      dispatch(fetchUsers({ page: 1, page_size: 10 }));
+      dispatch(fetchAvailability());
+    }
+  }, [currentUser, dispatch]);
+
+  const handleLogout = async () => {
+    try {
+      await dispatch(logoutUser()).unwrap();
+      toast.success("Logged out successfully.");
+    } catch {
+      toast.error("Logout failed. Please try again.");
+    }
     setLogoutOpen(false);
     navigate("/");
   };
+
+  if (currentUserStatus === "loading" || currentUserStatus === "idle") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <main className="flex-1 container mx-auto px-4 py-8 flex items-center justify-center">
+          <p className="text-muted-foreground">Loading account...</p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <main className="flex-1 container mx-auto px-4 py-8 flex flex-col items-center justify-center gap-4">
+          <p className="text-muted-foreground">Unable to load your account.</p>
+          <Button onClick={() => dispatch(fetchCurrentUser())}>Retry</Button>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -45,10 +116,10 @@ const AccountPage = () => {
                 <>
                   <div className="flex flex-col items-center py-6 border-b border-border mb-4">
                     <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary mb-2">
-                      {isAdmin ? "AT" : "JD"}
+                        {displayInitials}
                     </div>
                     <p className="font-semibold text-card-foreground">
-                      {isAdmin ? "Admin Tutor" : "Jane Doe"}
+                        {displayName}
                     </p>
                     <span className={`text-xs px-2 py-0.5 rounded-full mt-1 ${
                       isAdmin ? "bg-primary/10 text-primary" : "bg-accent text-accent-foreground"

@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { format, addDays, isSameDay, isAfter, startOfDay } from "date-fns";
+import { addDays, addMinutes, format, isAfter, parse, startOfDay } from "date-fns";
 import { CalendarCheck, Clock, Video, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -14,79 +14,320 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { courses } from "@/lib/mock-data";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  createSchedules,
+  fetchCourseDetail,
+  fetchCourseSchedules,
+  fetchEnrollments,
+  fetchPublicAvailability,
+} from "@/store/thunks";
 
-// Mock admin availability - days of week (0=Sun, 6=Sat) and time slots
-const adminAvailability = {
-  daysOfWeek: [1, 2, 3, 4, 5], // Monday to Friday
-  timeSlots: [
-    { start: "09:00", end: "09:30" },
-    { start: "10:00", end: "10:30" },
-    { start: "11:00", end: "11:30" },
-    { start: "14:00", end: "14:30" },
-    { start: "15:00", end: "15:30" },
-    { start: "16:00", end: "16:30" },
-  ],
-  // Dates that are already booked (mock data)
-  bookedSlots: [
-    { date: format(addDays(new Date(), 1), "yyyy-MM-dd"), time: "10:00" },
-    { date: format(addDays(new Date(), 2), "yyyy-MM-dd"), time: "14:00" },
-    { date: format(addDays(new Date(), 3), "yyyy-MM-dd"), time: "09:00" },
-  ],
+const USED_ONBOARDING_TOKENS_KEY = "insideout_used_onboarding_tokens";
+const ONBOARDING_DURATION_MINUTES = 60;
+const SLOT_STEP_MINUTES = 30;
+
+const normalizeTime = (value: string) => value.slice(0, 5);
+const normalizeTimeForApi = (value: string) => (value.length === 5 ? `${value}:00` : value);
+const toMinuteIndex = (value: string) => {
+  const [hours, minutes] = normalizeTime(value).split(":").map(Number);
+  return hours * 60 + minutes;
+};
+const hasOverlap = (
+  startMinute: number,
+  endMinute: number,
+  bookedRanges: Array<{ startMinute: number; endMinute: number }>,
+) => bookedRanges.some((range) => startMinute < range.endMinute && endMinute > range.startMinute);
+
+const dayOfWeekToAvailabilityNumber = (date: Date) => (date.getDay() === 0 ? 7 : date.getDay());
+
+const readUsedOnboardingTokens = (): string[] => {
+  try {
+    const raw = localStorage.getItem(USED_ONBOARDING_TOKENS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeUsedOnboardingToken = (token: string) => {
+  const existing = readUsedOnboardingTokens();
+  if (existing.includes(token)) {
+    return;
+  }
+  localStorage.setItem(USED_ONBOARDING_TOKENS_KEY, JSON.stringify([...existing, token]));
 };
 
 const OnboardingBookingPage = () => {
   const { id, token } = useParams();
   const navigate = useNavigate();
-  const course = courses.find((c) => c.id === id);
+  const dispatch = useAppDispatch();
+
+  const courseId = id ? Number(id) : NaN;
+  const isCourseIdValid = Number.isInteger(courseId) && courseId > 0;
+
+  const course = useAppSelector((state) =>
+    isCourseIdValid ? state.courses.byId[courseId] : undefined,
+  );
+  const courseStatus = useAppSelector((state) =>
+    isCourseIdValid ? state.courses.requests.detailById[courseId]?.status ?? "idle" : "idle",
+  );
+  const courseError = useAppSelector((state) =>
+    isCourseIdValid ? state.courses.requests.detailById[courseId]?.error ?? null : null,
+  );
+
+  const enrollmentList = useAppSelector((state) => state.enrollments.list?.data ?? []);
+  const enrollmentsStatus = useAppSelector((state) => state.enrollments.requests.list.status);
+
+  const onboardingAvailability = useAppSelector((state) => state.availability.publicView);
+  const onboardingAvailabilityStatus = useAppSelector((state) => state.availability.requests.fetchPublic.status);
+  const onboardingAvailabilityError = useAppSelector((state) => state.availability.requests.fetchPublic.error);
+
+  const existingCourseSchedules = useAppSelector((state) =>
+    isCourseIdValid ? state.courses.schedulesByCourseId[courseId] ?? [] : [],
+  );
+  const createScheduleStatus = useAppSelector((state) => state.schedules.requests.createMany.status);
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isBooked, setIsBooked] = useState(false);
-  const [isExpired] = useState(false); // Would be checked against backend
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [bookedRange, setBookedRange] = useState<{ start: string; end: string } | null>(null);
+  const [isConsumedToken, setIsConsumedToken] = useState<boolean>(() => {
+    if (!token) {
+      return true;
+    }
+    return readUsedOnboardingTokens().includes(token);
+  });
 
-  // Get available time slots for selected date
+  useEffect(() => {
+    if (!isCourseIdValid) {
+      return;
+    }
+    dispatch(fetchCourseDetail(courseId));
+    dispatch(fetchEnrollments({ page: 1, page_size: 100 }));
+    dispatch(fetchPublicAvailability());
+    dispatch(fetchCourseSchedules(courseId));
+  }, [courseId, dispatch, isCourseIdValid]);
+
+  const eligibleEnrollment = useMemo(() => {
+    return [...enrollmentList]
+      .filter(
+        (item) =>
+          item.course_id === courseId &&
+          (item.status === "active" || item.status === "completed"),
+      )
+      .sort((left, right) => right.id - left.id)[0];
+  }, [courseId, enrollmentList]);
+
+  const availabilityDays = onboardingAvailability?.availability ?? [];
+  const unavailableDateSet = useMemo(
+    () => new Set((onboardingAvailability?.unavailable_dates ?? []).map((date) => date.slice(0, 10))),
+    [onboardingAvailability?.unavailable_dates],
+  );
+
   const availableSlots = useMemo(() => {
-    if (!selectedDate) return [];
+    if (!selectedDate || !onboardingAvailability) {
+      return [] as Array<{ start: string; end: string }>;
+    }
 
-    const dayOfWeek = selectedDate.getDay();
-    if (!adminAvailability.daysOfWeek.includes(dayOfWeek)) return [];
+    const dayNumber = dayOfWeekToAvailabilityNumber(selectedDate);
+    const dayConfig = availabilityDays.find((day) => day.day_of_week === dayNumber);
+    if (!dayConfig) {
+      return [];
+    }
 
-    const dateStr = format(selectedDate, "yyyy-MM-dd");
-    const bookedTimes = adminAvailability.bookedSlots
-      .filter((slot) => slot.date === dateStr)
-      .map((slot) => slot.time);
+    const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
+    if (unavailableDateSet.has(selectedDateKey)) {
+      return [];
+    }
 
-    return adminAvailability.timeSlots.filter(
-      (slot) => !bookedTimes.includes(slot.start)
-    );
-  }, [selectedDate]);
+    const bookedRanges = (onboardingAvailability.booked_slots ?? [])
+      .filter((slot) => slot.date.slice(0, 10) === selectedDateKey)
+      .map((slot) => ({
+        startMinute: toMinuteIndex(slot.start_time),
+        endMinute: toMinuteIndex(slot.end_time),
+      }));
 
-  // Disable dates that are not available
+    const startMap = new Map<string, { start: string; end: string }>();
+
+    dayConfig.time_slots.forEach((slot) => {
+      const slotStart = toMinuteIndex(slot.start_time);
+      const slotEnd = toMinuteIndex(slot.end_time);
+
+      for (
+        let candidateStart = slotStart;
+        candidateStart + ONBOARDING_DURATION_MINUTES <= slotEnd;
+        candidateStart += SLOT_STEP_MINUTES
+      ) {
+        const candidateEnd = candidateStart + ONBOARDING_DURATION_MINUTES;
+        if (hasOverlap(candidateStart, candidateEnd, bookedRanges)) {
+          continue;
+        }
+
+        const startLabel = format(addMinutes(parse("00:00", "HH:mm", new Date()), candidateStart), "HH:mm");
+        const endLabel = format(addMinutes(parse("00:00", "HH:mm", new Date()), candidateEnd), "HH:mm");
+        if (!startMap.has(startLabel)) {
+          startMap.set(startLabel, { start: startLabel, end: endLabel });
+        }
+      }
+    });
+
+    return [...startMap.values()].sort((left, right) => left.start.localeCompare(right.start));
+  }, [availabilityDays, onboardingAvailability, selectedDate, unavailableDateSet]);
+
+  const isExpired = !token || isConsumedToken || existingCourseSchedules.length > 0;
+
   const disabledDays = (date: Date) => {
     const today = startOfDay(new Date());
+    if (!onboardingAvailability) return true;
     if (!isAfter(date, today)) return true;
-    if (!adminAvailability.daysOfWeek.includes(date.getDay())) return true;
-    // Disable dates more than 30 days in the future
     if (isAfter(date, addDays(today, 30))) return true;
+
+    const month = date.getMonth() + 1;
+    if (
+      onboardingAvailability.month_start !== null &&
+      onboardingAvailability.month_end !== null &&
+      (month < onboardingAvailability.month_start || month > onboardingAvailability.month_end)
+    ) {
+      return true;
+    }
+
+    const dayConfig = availabilityDays.find((day) => day.day_of_week === dayOfWeekToAvailabilityNumber(date));
+    if (!dayConfig) {
+      return true;
+    }
+
+    const dateStr = format(date, "yyyy-MM-dd");
+    if (unavailableDateSet.has(dateStr)) {
+      return true;
+    }
+
+    const hasAnyOpenSlot = dayConfig.time_slots.some(
+      (slot) => {
+        const slotStart = toMinuteIndex(slot.start_time);
+        const slotEnd = toMinuteIndex(slot.end_time);
+        const bookedRanges = (onboardingAvailability.booked_slots ?? [])
+          .filter((item) => item.date.slice(0, 10) === dateStr)
+          .map((item) => ({
+            startMinute: toMinuteIndex(item.start_time),
+            endMinute: toMinuteIndex(item.end_time),
+          }));
+
+        for (
+          let candidateStart = slotStart;
+          candidateStart + ONBOARDING_DURATION_MINUTES <= slotEnd;
+          candidateStart += SLOT_STEP_MINUTES
+        ) {
+          const candidateEnd = candidateStart + ONBOARDING_DURATION_MINUTES;
+          if (!hasOverlap(candidateStart, candidateEnd, bookedRanges)) {
+            return true;
+          }
+        }
+
+        return false;
+      },
+    );
+    if (!hasAnyOpenSlot) {
+      return true;
+    }
+
     return false;
   };
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date);
     setSelectedTime(null);
+    setBookingError(null);
   };
 
   const handleTimeSelect = (time: string) => {
     setSelectedTime(time);
+    setBookingError(null);
   };
 
-  const handleConfirmBooking = () => {
-    // Mock booking confirmation
-    setIsBooked(true);
+  const handleConfirmBooking = async () => {
+    if (!selectedDate || !selectedTime || !eligibleEnrollment) {
+      setBookingError("Please choose a valid date and time.");
+      return;
+    }
+
+    const slot = availableSlots.find((item) => item.start === selectedTime);
+    if (!slot) {
+      setBookingError("Selected time slot is no longer available. Please choose another.");
+      return;
+    }
+
+    try {
+      await dispatch(
+        createSchedules([
+          {
+            enrollment_id: eligibleEnrollment.id,
+            date: format(selectedDate, "yyyy-MM-dd"),
+            start_time: normalizeTimeForApi(slot.start),
+            end_time: normalizeTimeForApi(slot.end),
+          },
+        ]),
+      ).unwrap();
+
+      if (token) {
+        writeUsedOnboardingToken(token);
+        setIsConsumedToken(true);
+      }
+
+      setBookedRange({ start: slot.start, end: slot.end });
+      setIsBooked(true);
+      dispatch(fetchCourseSchedules(courseId));
+    } catch {
+      setBookingError("Unable to confirm booking right now. Please try again.");
+    }
+
     setIsConfirmOpen(false);
   };
+
+  if (!isCourseIdValid) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">Invalid Course</h2>
+            <p className="text-muted-foreground mb-4">The onboarding link is invalid.</p>
+            <Button onClick={() => navigate("/")}>Go Home</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (courseStatus === "idle" || courseStatus === "loading") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <p className="text-muted-foreground">Loading onboarding details...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (courseStatus === "failed") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">Unable to Load Course</h2>
+            <p className="text-muted-foreground mb-4">{courseError ?? "Please try again."}</p>
+            <Button onClick={() => dispatch(fetchCourseDetail(courseId))}>Retry</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!course) {
     return (
@@ -143,9 +384,9 @@ const OnboardingBookingPage = () => {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-primary" />
+                    <Clock className="w-4 h-4 text-primary" />
                   <span className="text-foreground">
-                    {selectedTime} - {adminAvailability.timeSlots.find(s => s.start === selectedTime)?.end}
+                    {bookedRange ? `${bookedRange.start} - ${bookedRange.end}` : "Time confirmed"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -196,7 +437,23 @@ const OnboardingBookingPage = () => {
             Schedule your first one-on-one meeting with your tutor for{" "}
             <span className="font-medium text-foreground">{course.title}</span>
           </p>
+          {onboardingAvailabilityStatus === "failed" && (
+            <p className="text-sm text-destructive mt-3">
+              {onboardingAvailabilityError ?? "Could not load tutor availability."}
+            </p>
+          )}
         </div>
+
+        {enrollmentsStatus === "succeeded" && !eligibleEnrollment && (
+          <Card className="mb-6 border-destructive/30">
+            <CardContent className="pt-6 text-center">
+              <AlertCircle className="w-10 h-10 text-destructive mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">
+                You need an active or completed enrollment in this course before booking onboarding.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Calendar Section */}
@@ -233,7 +490,7 @@ const OnboardingBookingPage = () => {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-foreground mb-3 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-primary" />
-                    Available Times
+                      Available Start Times
                     {selectedDate && (
                       <span className="text-sm font-normal text-muted-foreground">
                         for {format(selectedDate, "MMM d")}
@@ -245,14 +502,14 @@ const OnboardingBookingPage = () => {
                     <div className="bg-accent/50 rounded-lg p-6 text-center">
                       <Clock className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">
-                        Select a date to see available time slots
+                        Select a date to see available one-hour start times
                       </p>
                     </div>
                   ) : availableSlots.length === 0 ? (
                     <div className="bg-destructive/10 rounded-lg p-6 text-center">
                       <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-2" />
                       <p className="text-sm text-destructive">
-                        No available slots for this date. Please select another date.
+                        No one-hour slots available for this date. Please select another date.
                       </p>
                     </div>
                   ) : (
@@ -262,16 +519,21 @@ const OnboardingBookingPage = () => {
                           key={slot.start}
                           onClick={() => handleTimeSelect(slot.start)}
                           className={cn(
-                            "p-3 rounded-lg border text-sm font-medium transition-all",
+                            "p-3 rounded-lg border text-sm font-medium transition-all text-left",
                             selectedTime === slot.start
                               ? "bg-primary text-primary-foreground border-primary"
                               : "bg-card border-border hover:border-primary hover:bg-accent text-foreground"
                           )}
                         >
-                          {slot.start}
+                          <span className="block">{slot.start}</span>
+                          <span className="block text-xs opacity-80">ends {slot.end}</span>
                         </button>
                       ))}
                     </div>
+                  )}
+
+                  {bookingError && (
+                    <p className="text-sm text-destructive mt-3">{bookingError}</p>
                   )}
                 </div>
               </div>
@@ -287,13 +549,13 @@ const OnboardingBookingPage = () => {
               {/* Course Info */}
               <div className="flex gap-3">
                 <img
-                  src={course.image}
+                  src={course.image_url ?? "/media/defaults/course-default.png"}
                   alt={course.title}
                   className="w-16 h-16 rounded-lg object-cover"
                 />
                 <div>
                   <h4 className="font-medium text-foreground text-sm">{course.title}</h4>
-                  <p className="text-xs text-muted-foreground">{course.category}</p>
+                  <p className="text-xs text-muted-foreground">Onboarding</p>
                 </div>
               </div>
 
@@ -318,7 +580,7 @@ const OnboardingBookingPage = () => {
                     <p className="text-xs text-muted-foreground">Time</p>
                     <p className="text-sm font-medium text-foreground">
                       {selectedTime
-                        ? `${selectedTime} - ${adminAvailability.timeSlots.find(s => s.start === selectedTime)?.end}`
+                        ? `${selectedTime} - ${availableSlots.find((s) => s.start === selectedTime)?.end ?? ""}`
                         : "Not selected"}
                     </p>
                   </div>
@@ -332,14 +594,28 @@ const OnboardingBookingPage = () => {
                     <p className="text-sm font-medium text-foreground">Zoom Video Call</p>
                   </div>
                 </div>
+
+                <div className="flex items-start gap-3">
+                  <Clock className="w-4 h-4 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Duration</p>
+                    <p className="text-sm font-medium text-foreground">1 hour</p>
+                  </div>
+                </div>
               </div>
 
               <Button
                 className="w-full mt-4"
-                disabled={!selectedDate || !selectedTime}
+                disabled={
+                  !selectedDate ||
+                  !selectedTime ||
+                  !eligibleEnrollment ||
+                  createScheduleStatus === "loading" ||
+                  onboardingAvailabilityStatus !== "succeeded"
+                }
                 onClick={() => setIsConfirmOpen(true)}
               >
-                Confirm Booking
+                {createScheduleStatus === "loading" ? "Confirming..." : "Confirm Booking"}
               </Button>
 
               <p className="text-xs text-muted-foreground text-center">
@@ -397,12 +673,12 @@ const OnboardingBookingPage = () => {
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Time</span>
               <span className="font-medium text-foreground">
-                {selectedTime} - {adminAvailability.timeSlots.find(s => s.start === selectedTime)?.end}
+                {selectedTime} - {availableSlots.find((s) => s.start === selectedTime)?.end}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Duration</span>
-              <span className="font-medium text-foreground">30 minutes</span>
+              <span className="font-medium text-foreground">1 hour</span>
             </div>
           </div>
 

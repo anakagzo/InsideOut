@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, time
 
 
 def test_admin_can_upsert_and_get_availability(client, create_user, auth_headers):
@@ -57,6 +57,58 @@ def test_student_cannot_manage_availability(client, create_user, auth_headers):
     student = create_user(role="student")
     response = client.get("/availability/", headers=auth_headers(student))
     assert response.status_code == 403
+
+
+def test_student_can_read_public_availability_with_booked_slots(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    create_schedule,
+    auth_headers,
+):
+    admin = create_user(role="admin", email="admin-public@example.com")
+    student = create_user(role="student", email="student-public@example.com")
+
+    upsert_response = client.post(
+        "/availability/",
+        json={
+            "month_start": 2,
+            "month_end": 3,
+            "availability": [
+                {
+                    "day_of_week": 1,
+                    "time_slots": [
+                        {"start_time": "09:00:00", "end_time": "10:00:00"},
+                    ],
+                }
+            ],
+            "unavailable_dates": [date(2026, 2, 18).isoformat()],
+        },
+        headers=auth_headers(admin),
+    )
+    assert upsert_response.status_code == 201
+
+    course = create_course()
+    enrollment = create_enrollment(student.id, course.id)
+    create_schedule(
+        enrollment.id,
+        date=date(2026, 2, 17),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+    )
+
+    response = client.get("/availability/public", headers=auth_headers(student))
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["month_start"] == 2
+    assert len(payload["availability"]) == 1
+    assert payload["unavailable_dates"] == [date(2026, 2, 18).isoformat()]
+    matching_slot = next((slot for slot in payload["booked_slots"] if slot["date"] == date(2026, 2, 17).isoformat()), None)
+    assert matching_slot is not None
+    assert matching_slot["start_time"] == "09:00:00"
+    assert matching_slot["end_time"] == "10:00:00"
 
 
 def test_student_can_create_review_once_when_enrolled(

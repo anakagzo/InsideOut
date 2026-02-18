@@ -1,25 +1,50 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { CourseCard } from "@/components/CourseCard";
-import { courses } from "@/lib/mock-data";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchCourses } from "@/store/thunks";
 
 const ITEMS_PER_PAGE = 4;
 
 const CoursesPage = () => {
+  const dispatch = useAppDispatch();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const filtered = useMemo(() =>
-    courses.filter((c) => c.title.toLowerCase().includes(search.toLowerCase())),
-    [search]
+  const coursesList = useAppSelector((state) => state.courses.list);
+  const listStatus = useAppSelector((state) => state.courses.requests.list.status);
+  const listError = useAppSelector((state) => state.courses.requests.list.error);
+
+  useEffect(() => {
+    dispatch(
+      fetchCourses({
+        page,
+        page_size: ITEMS_PER_PAGE,
+        search: search.trim() || undefined,
+      }),
+    );
+  }, [dispatch, page, search]);
+
+  const paginated = useMemo(
+    () =>
+      (coursesList?.data ?? []).map((course) => ({
+        id: course.id,
+        title: course.title,
+        description: course.description,
+        image: course.image_url,
+        category: "Course",
+        rating: course.average_rating,
+        reviewCount: 0,
+        price: Number(course.price),
+      })),
+    [coursesList],
   );
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const totalPages = coursesList?.pagination.total_pages ?? 1;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -39,10 +64,32 @@ const CoursesPage = () => {
         </div>
 
         <div className="space-y-5">
+          {(listStatus === "idle" || listStatus === "loading") && (
+            <p className="text-center text-muted-foreground py-12">Loading courses...</p>
+          )}
+          {listStatus === "failed" && (
+            <div className="text-center py-12 space-y-3">
+              <p className="text-muted-foreground">{listError ?? "Unable to load courses right now."}</p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  dispatch(
+                    fetchCourses({
+                      page,
+                      page_size: ITEMS_PER_PAGE,
+                      search: search.trim() || undefined,
+                    }),
+                  );
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          )}
           {paginated.map((course) => (
             <CourseCard key={course.id} course={course} variant="wide" />
           ))}
-          {paginated.length === 0 && (
+          {listStatus === "succeeded" && paginated.length === 0 && (
             <p className="text-center text-muted-foreground py-12">No courses found matching your search.</p>
           )}
         </div>

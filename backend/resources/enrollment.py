@@ -30,21 +30,34 @@ class EnrollmentList(MethodView):
     """Collection operations for enrollments."""
 
     @jwt_required()
-    @admin_required
     @blp.response(200, EnrollmentListResponseSchema)
     def get(self):
-        """Return paginated enrollments with optional search by course or student."""
+        """Return paginated enrollments; students see their own, admins see all."""
+        user_id = get_jwt_identity()
+        user = db.session.get(User, user_id)
+        if not user:
+            abort(404, message="User not found.")
+
         page = request.args.get("page", 1, type=int)
         page_size = request.args.get("page_size", 10, type=int)
         search = request.args.get("search", "").strip()
         logger.info(
             "Enrollment list requested",
-            extra={"page": page, "page_size": page_size, "has_search": bool(search)},
+            extra={
+                "page": page,
+                "page_size": page_size,
+                "has_search": bool(search),
+                "user_id": user_id,
+                "user_role": user.role,
+            },
         )
 
         normalized_search = " ".join(search.split())
         
         query = Enrollment.query
+
+        if user.role != "admin":
+            query = query.filter(Enrollment.student_id == user_id)
         
         if search:
             # Join to both Course and User tables

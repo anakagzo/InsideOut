@@ -1,15 +1,28 @@
 import { Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import type { Course } from "@/lib/mock-data";
+
+const DEFAULT_COURSE_IMAGE = "/media/defaults/course-default.png";
+
+export interface CourseCardData {
+  id: number | string;
+  title: string;
+  image: string | null;
+  rating: number;
+  reviewCount: number;
+  price: number | string;
+  description: string;
+  category: string;
+}
 
 interface CourseCardProps {
-  course: Course;
+  course: CourseCardData;
   variant?: "compact" | "wide";
 }
 
 export function CourseCard({ course, variant = "compact" }: CourseCardProps) {
   const navigate = useNavigate();
+  const imageSrc = course.image || DEFAULT_COURSE_IMAGE;
 
   if (variant === "wide") {
     return (
@@ -18,7 +31,7 @@ export function CourseCard({ course, variant = "compact" }: CourseCardProps) {
         className="flex flex-col sm:flex-row gap-4 bg-card rounded-lg border border-border shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer overflow-hidden group"
       >
         <div className="sm:w-64 h-48 sm:h-auto overflow-hidden shrink-0">
-          <img src={course.image} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          <img src={imageSrc} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         </div>
         <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between">
           <div>
@@ -52,7 +65,7 @@ export function CourseCard({ course, variant = "compact" }: CourseCardProps) {
       className="bg-card rounded-lg border border-border shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer overflow-hidden group min-w-[260px] max-w-[320px] flex-shrink-0"
     >
       <div className="h-44 overflow-hidden">
-        <img src={course.image} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <img src={imageSrc} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
       </div>
       <div className="p-4">
         <span className="text-xs font-medium text-primary bg-accent px-2 py-1 rounded-full">{course.category}</span>

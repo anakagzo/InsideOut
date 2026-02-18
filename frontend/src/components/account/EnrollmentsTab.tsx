@@ -1,32 +1,43 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Eye, Edit, Calendar, User, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { enrollments, users, courses } from "@/lib/mock-data";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import type { Enrollment } from "@/api/types";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchCourses, fetchEnrollments, fetchUsers } from "@/store/thunks";
+import { selectFilteredEnrollmentRows } from "@/store/selectors/accountSelectors";
 
 export const EnrollmentsTab = () => {
+  const dispatch = useAppDispatch();
   const [searchQuery, setSearchQuery] = useState("");
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [selectedEnrollment, setSelectedEnrollment] = useState<typeof enrollments[0] | null>(null);
+  const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(null);
 
-  const getUser = (userId: string) => users.find((u) => u.id === userId);
-  const getCourse = (courseId: string) => courses.find((c) => c.id === courseId);
+  const enrollmentsResponse = useAppSelector((state) => state.enrollments.list);
+  const enrollmentsStatus = useAppSelector((state) => state.enrollments.requests.list.status);
+  const coursesResponse = useAppSelector((state) => state.courses.list);
+  const filteredRows = useAppSelector((state) => selectFilteredEnrollmentRows(state, searchQuery));
 
-  const filteredEnrollments = enrollments.filter((e) => {
-    const user = getUser(e.userId);
-    const course = getCourse(e.courseId);
-    const query = searchQuery.toLowerCase();
-    return (
-      user?.firstName.toLowerCase().includes(query) ||
-      user?.lastName.toLowerCase().includes(query) ||
-      course?.title.toLowerCase().includes(query)
-    );
-  });
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      dispatch(fetchEnrollments({ page: 1, page_size: 100, search: searchQuery || undefined }));
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [dispatch, searchQuery]);
+
+  useEffect(() => {
+    dispatch(fetchUsers({ page: 1, page_size: 100 }));
+    dispatch(fetchCourses({ page: 1, page_size: 100 }));
+  }, [dispatch]);
+
+  const getRowMeta = (enrollmentId: number) => filteredRows.find((row) => row.enrollment.id === enrollmentId);
 
   const StatusBadge = ({ status }: { status: string }) => {
     const styles = {
@@ -42,7 +53,6 @@ export const EnrollmentsTab = () => {
 
   return (
     <div className="space-y-4">
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
@@ -53,28 +63,30 @@ export const EnrollmentsTab = () => {
         />
       </div>
 
-      {/* Enrollments List */}
       <div className="space-y-3">
-        {filteredEnrollments.map((enrollment) => {
-          const user = getUser(enrollment.userId);
-          const course = getCourse(enrollment.courseId);
+        {enrollmentsStatus === "loading" && (
+          <p className="text-sm text-muted-foreground">Loading enrollments...</p>
+        )}
+
+        {filteredRows.map((row) => {
+          const enrollment = row.enrollment;
           return (
             <div
               key={enrollment.id}
               className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg"
             >
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                {user?.initials}
+                {row.userInitials}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-card-foreground text-sm">
-                  {user?.firstName} {user?.lastName}
+                  {row.userName}
                 </p>
-                <p className="text-xs text-muted-foreground truncate">{course?.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{row.courseTitle}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <StatusBadge status={enrollment.status} />
                   <span className="text-xs text-muted-foreground">
-                    Started: {format(new Date(enrollment.startDate), "MMM d, yyyy")}
+                    Started: {format(new Date(enrollment.start_date), "MMM d, yyyy")}
                   </span>
                 </div>
               </div>
@@ -106,7 +118,7 @@ export const EnrollmentsTab = () => {
           );
         })}
 
-        {filteredEnrollments.length === 0 && (
+        {filteredRows.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
             <p>No enrollments found.</p>
@@ -114,7 +126,6 @@ export const EnrollmentsTab = () => {
         )}
       </div>
 
-      {/* View Enrollment Modal */}
       <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
         <DialogContent className="bg-card sm:max-w-lg">
           <DialogHeader>
@@ -126,13 +137,19 @@ export const EnrollmentsTab = () => {
                 <User className="w-5 h-5 text-primary mt-0.5" />
                 <div>
                   <p className="font-medium text-card-foreground text-sm">Student</p>
+                  {(() => {
+                    const rowMeta = getRowMeta(selectedEnrollment.id);
+                    return (
+                      <>
                   <p className="text-sm text-muted-foreground">
-                    {getUser(selectedEnrollment.userId)?.firstName}{" "}
-                    {getUser(selectedEnrollment.userId)?.lastName}
+                    {rowMeta?.userName ?? `Student #${selectedEnrollment.student_id}`}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {getUser(selectedEnrollment.userId)?.email}
+                    {rowMeta?.userEmail ?? "No email available"}
                   </p>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -141,7 +158,7 @@ export const EnrollmentsTab = () => {
                 <div>
                   <p className="font-medium text-card-foreground text-sm">Course</p>
                   <p className="text-sm text-muted-foreground">
-                    {getCourse(selectedEnrollment.courseId)?.title}
+                    {getRowMeta(selectedEnrollment.id)?.courseTitle ?? `Course #${selectedEnrollment.course_id}`}
                   </p>
                   <StatusBadge status={selectedEnrollment.status} />
                 </div>
@@ -152,34 +169,18 @@ export const EnrollmentsTab = () => {
                 <div>
                   <p className="font-medium text-card-foreground text-sm">Schedule</p>
                   <p className="text-sm text-muted-foreground">
-                    Start: {format(new Date(selectedEnrollment.startDate), "MMM d, yyyy")}
+                    Start: {format(new Date(selectedEnrollment.start_date), "MMM d, yyyy")}
                   </p>
-                  {selectedEnrollment.endDate && (
+                  {selectedEnrollment.end_date && (
                     <p className="text-sm text-muted-foreground">
-                      End: {format(new Date(selectedEnrollment.endDate), "MMM d, yyyy")}
+                      End: {format(new Date(selectedEnrollment.end_date), "MMM d, yyyy")}
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground mt-1">
-                    {selectedEnrollment.schedules.length} scheduled session(s)
+                    Open the Schedules tab for associated sessions.
                   </p>
                 </div>
               </div>
-
-              {selectedEnrollment.schedules.length > 0 && (
-                <div className="space-y-2">
-                  <p className="font-medium text-card-foreground text-sm">Upcoming Sessions</p>
-                  {selectedEnrollment.schedules.map((schedule) => (
-                    <div key={schedule.id} className="text-sm p-2 bg-secondary rounded">
-                      <p className="text-card-foreground">
-                        {format(new Date(schedule.date), "EEEE, MMM d, yyyy")}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {schedule.startTime} - {schedule.endTime}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
           <DialogFooter>
@@ -190,7 +191,6 @@ export const EnrollmentsTab = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Enrollment Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
         <DialogContent className="bg-card sm:max-w-lg">
           <DialogHeader>
@@ -202,18 +202,18 @@ export const EnrollmentsTab = () => {
                 <Label>Student</Label>
                 <Input
                   disabled
-                  value={`${getUser(selectedEnrollment.userId)?.firstName} ${getUser(selectedEnrollment.userId)?.lastName}`}
+                  value={getRowMeta(selectedEnrollment.id)?.userName ?? `Student #${selectedEnrollment.student_id}`}
                 />
               </div>
               <div>
                 <Label>Course</Label>
-                <Select defaultValue={selectedEnrollment.courseId}>
+                <Select defaultValue={String(selectedEnrollment.course_id)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {courses.map((course) => (
-                      <SelectItem key={course.id} value={course.id}>
+                    {(coursesResponse?.data ?? []).map((course) => (
+                      <SelectItem key={course.id} value={String(course.id)}>
                         {course.title}
                       </SelectItem>
                     ))}
@@ -227,7 +227,7 @@ export const EnrollmentsTab = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="enrolled">Enrolled</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
@@ -235,11 +235,11 @@ export const EnrollmentsTab = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Start Date</Label>
-                  <Input type="date" defaultValue={selectedEnrollment.startDate} />
+                  <Input type="date" defaultValue={selectedEnrollment.start_date} />
                 </div>
                 <div>
                   <Label>End Date</Label>
-                  <Input type="date" defaultValue={selectedEnrollment.endDate || ""} />
+                  <Input type="date" defaultValue={selectedEnrollment.end_date || ""} />
                 </div>
               </div>
               <div>
@@ -262,7 +262,14 @@ export const EnrollmentsTab = () => {
             <Button variant="outline" onClick={() => setEditModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => setEditModalOpen(false)}>Save Changes</Button>
+            <Button
+              onClick={() => {
+                toast.info("Enrollment edit endpoint is not available yet.");
+                setEditModalOpen(false);
+              }}
+            >
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

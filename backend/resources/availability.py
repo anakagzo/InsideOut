@@ -5,8 +5,9 @@ from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from datetime import datetime, timezone
-from schemas import AvailabilitySchema, AvailabilityUpsertSchema
+from schemas import AvailabilitySchema, AvailabilityUpsertSchema, PublicAvailabilitySchema
 from models import Availability, AvailabilityTimeSlot, AvailabilityUnavailableDate, User
+from models import Schedule
 from db import db
 from utils.decorators import admin_required
 
@@ -191,4 +192,51 @@ class AvailabilityList(MethodView):
             "month_end": month_end,
             "availability": availability_days,
             "unavailable_dates": unavailable_dates,
+        }
+
+
+@blp.route("/public")
+class PublicAvailabilityList(MethodView):
+    """Read-only availability feed for learners booking onboarding sessions."""
+
+    @jwt_required()
+    @blp.response(200, PublicAvailabilitySchema)
+    def get(self):
+        """Return admin availability, unavailable dates, and already booked slots."""
+        user_id = int(get_jwt_identity())
+        logger.info("Public availability read requested", extra={"user_id": user_id})
+
+        admin_user = User.query.filter_by(role="admin").order_by(User.id.asc()).first()
+        if not admin_user:
+            abort(404, message="No admin availability configured.")
+
+        availability_days = (
+            Availability.query.filter_by(user_id=admin_user.id)
+            .order_by(Availability.day_of_week.asc())
+            .all()
+        )
+        unavailable_dates = (
+            AvailabilityUnavailableDate.query.filter_by(user_id=admin_user.id)
+            .order_by(AvailabilityUnavailableDate.unavailable_date.asc())
+            .all()
+        )
+
+        month_start = availability_days[0].month_start if availability_days else None
+        month_end = availability_days[0].month_end if availability_days else None
+
+        booked_slots = [
+            {
+                "date": schedule.date,
+                "start_time": schedule.start_time,
+                "end_time": schedule.end_time,
+            }
+            for schedule in Schedule.query.all()
+        ]
+
+        return {
+            "month_start": month_start,
+            "month_end": month_end,
+            "availability": availability_days,
+            "unavailable_dates": [item.unavailable_date for item in unavailable_dates],
+            "booked_slots": booked_slots,
         }

@@ -13,15 +13,73 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { courses } from "@/lib/mock-data";
+import { useCheckoutCourse } from "@/features/checkout/useCheckoutCourse";
+
+/**
+ * Formats backend decimal-like price values for display.
+ */
+const formatPrice = (price: string | number | null | undefined): string => {
+  const numericPrice = Number(price ?? 0);
+  return Number.isFinite(numericPrice) ? numericPrice.toFixed(2) : "0.00";
+};
 
 const CheckoutPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const course = courses.find((c) => c.id === id);
+  const courseId = id ? Number(id) : NaN;
+  const isCourseIdValid = Number.isInteger(courseId) && courseId > 0;
+
+  const {
+    course,
+    status: courseStatus,
+    error: courseError,
+    refetch,
+  } = useCheckoutCourse(isCourseIdValid ? courseId : null);
+
   const [paymentMethod, setPaymentMethod] = useState<"stripe" | "bank">("stripe");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  const coursePrice = formatPrice(course?.price);
+
+  if (!isCourseIdValid) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Invalid course identifier.</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (courseStatus === "loading" || courseStatus === "idle") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Loading course details...</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (courseStatus === "failed") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Header />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4 text-center">
+          <p className="text-muted-foreground">{courseError ?? "Unable to load this course right now."}</p>
+          <Button onClick={refetch} variant="outline">
+            Retry
+          </Button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!course) {
     return (
@@ -110,7 +168,7 @@ const CheckoutPage = () => {
             {paymentMethod === "bank" && (
               <div className="p-4 bg-accent rounded-lg">
                 <p className="text-sm text-accent-foreground">
-                  Please transfer <strong>£{course.price}</strong> to the following account and use your email as reference:
+                  Please transfer <strong>£{coursePrice}</strong> to the following account and use your email as reference:
                 </p>
                 <div className="mt-3 text-sm text-muted-foreground space-y-1">
                   <p><strong className="text-foreground">Bank:</strong> InsideOutProgramme Bank</p>
@@ -127,7 +185,7 @@ const CheckoutPage = () => {
               disabled={isProcessing}
             >
               <ShieldCheck className="w-4 h-4 mr-2" />
-              {isProcessing ? "Processing..." : `Pay £${course.price}`}
+              {isProcessing ? "Processing..." : `Pay £${coursePrice}`}
             </Button>
           </div>
 
@@ -136,20 +194,24 @@ const CheckoutPage = () => {
             <div className="p-5 bg-card border border-border rounded-lg sticky top-24">
               <h3 className="font-semibold text-card-foreground mb-4">Order Summary</h3>
               <div className="flex gap-3 mb-4">
-                <img src={course.image} alt={course.title} className="w-16 h-16 rounded-md object-cover" />
+                <img
+                  src={course.image_url ?? "/media/defaults/course-default.png"}
+                  alt={course.title}
+                  className="w-16 h-16 rounded-md object-cover"
+                />
                 <div>
                   <p className="text-sm font-medium text-card-foreground">{course.title}</p>
-                  <p className="text-xs text-muted-foreground">{course.category}</p>
+                  <p className="text-xs text-muted-foreground">InsideOut Course</p>
                 </div>
               </div>
               <div className="border-t border-border pt-3 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Course fee</span>
-                  <span className="text-card-foreground">£{course.price}</span>
+                  <span className="text-card-foreground">£{coursePrice}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold">
                   <span className="text-card-foreground">Total</span>
-                  <span className="text-primary">£{course.price}</span>
+                  <span className="text-primary">£{coursePrice}</span>
                 </div>
               </div>
             </div>
