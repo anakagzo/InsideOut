@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from marshmallow import Schema, fields, validates_schema, ValidationError
 
 
 def _current_month():
-    return datetime.utcnow().month
+    return datetime.now(timezone.utc).month
 
 
 class AvailabilityTimeSlotSchema(Schema):

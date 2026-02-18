@@ -6,3 +6,5 @@ marshmallow
 python-dotenv
 gunicorn
 Flask-Migrate
+pytest
+pytest-cov

@@ -1,5 +1,19 @@
 from marshmallow import Schema, fields
-from schemas import CourseSchema, UserSchema, ScheduleSchema
+from .schedule import ScheduleSchema
+
+
+class EnrollmentStudentSchema(Schema):
+    id = fields.Int(dump_only=True)
+    initials = fields.Str(dump_only=True)
+    first_name = fields.Str(dump_only=True)
+    last_name = fields.Str(dump_only=True)
+    email = fields.Email(dump_only=True)
+
+
+class EnrollmentCourseSchema(Schema):
+    id = fields.Int(dump_only=True)
+    title = fields.Str(dump_only=True)
+    price = fields.Decimal(dump_only=True)
 
 
 class EnrollmentSchema(Schema):
@@ -10,8 +24,8 @@ class EnrollmentSchema(Schema):
     start_date = fields.DateTime()
     end_date = fields.DateTime()
 
-    student = fields.Nested(lambda: UserSchema(only=("id", "initials", "first_name", "last_name", "email")), dump_only=True)
-    course = fields.Nested(lambda: CourseSchema(only=("id", "title", "price")), dump_only=True)
+    student = fields.Nested(EnrollmentStudentSchema, dump_only=True)
+    course = fields.Nested(EnrollmentCourseSchema, dump_only=True)
     schedules = fields.Nested(lambda: ScheduleSchema(), many=True, dump_only=True)
 
 

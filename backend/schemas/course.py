@@ -1,5 +1,12 @@
 from marshmallow import Schema, fields
-from . import ReviewSchema
+
+
+class CourseReviewSummarySchema(Schema):
+    id = fields.Int(dump_only=True)
+    rating = fields.Int(dump_only=True)
+    comment = fields.Str(dump_only=True)
+    tutor_reply = fields.Str(dump_only=True)
+    created_at = fields.DateTime(dump_only=True)
 
 
 class CourseSchema(Schema):
@@ -16,10 +23,7 @@ class CourseSchema(Schema):
 
 
 class CourseDetailSchema(CourseSchema):
-    reviews = fields.Nested(
-        lambda: ReviewSchema(only=(
-            "id", "rating", "comment", "tutor_reply", "created_at")
-            ), many=True, dump_only=True)
+    reviews = fields.Nested(CourseReviewSummarySchema, many=True, dump_only=True)
 
 '''
 class CourseSingleResponseSchema(CourseDetailSchema):

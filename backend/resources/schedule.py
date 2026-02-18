@@ -1,6 +1,6 @@
 """Schedule endpoints for reading and creating class sessions."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -9,6 +9,13 @@ from schemas import ScheduleSchema
 from db import db
 
 blp = Blueprint("Schedules", "schedules", url_prefix="/schedules")
+
+
+def _get_enrollment_or_404(enrollment_id):
+    enrollment = db.session.get(Enrollment, enrollment_id)
+    if not enrollment:
+        abort(404, message="Enrollment not found.")
+    return enrollment
 
 @blp.route("/")
 class ScheduleList(MethodView):
@@ -19,7 +26,7 @@ class ScheduleList(MethodView):
     def get(self):
         """Return all schedules linked to the authenticated user's enrollments."""
         user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             abort(404, message="User not found.")
         
@@ -34,12 +41,12 @@ class ScheduleList(MethodView):
         return schedules
     
     @jwt_required()
-    @blp.arguments(ScheduleSchema, many=True)
+    @blp.arguments(ScheduleSchema(many=True))
     @blp.response(201, ScheduleSchema(many=True))
     def post(self, data):
         """Create one or more schedules for a single enrollment owned by the caller."""
         user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             abort(404, message="User not found.")
 
@@ -52,7 +59,7 @@ class ScheduleList(MethodView):
             abort(400, message="All schedules must belong to the same enrollment.")
         
         enrollment_id = enrollment_ids.pop()
-        enrollment = Enrollment.query.get_or_404(enrollment_id)
+        enrollment = _get_enrollment_or_404(enrollment_id)
         
         # Verify user owns this enrollment
         if enrollment.student_id != user_id:
@@ -71,7 +78,7 @@ class ScheduleList(MethodView):
             enrollment.end_date = max_date
         
         # Update enrollment status based on dates
-        enrollment.status = "active" if datetime.utcnow().date() <= max_date else "completed"
+        enrollment.status = "active" if datetime.now(timezone.utc).date() <= max_date else "completed"
         db.session.commit()
         return schedules
 
@@ -84,7 +91,7 @@ class ScheduleDetail(MethodView):
     def get(self, schedule_id):
         """Return one schedule if it belongs to an enrollment owned by the caller."""
         user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             abort(404, message="User not found.")
         

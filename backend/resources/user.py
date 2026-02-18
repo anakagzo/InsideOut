@@ -24,6 +24,13 @@ from utils.initials import generate_unique_initials
 blp = Blueprint("Users", __name__, description="Operations on users")
 
 
+def _get_user_or_404(user_id):
+    user = db.session.get(UserModel, user_id)
+    if not user:
+        abort(404, message="User not found.")
+    return user
+
+
 
 @blp.route("/auth/login")
 class Login(MethodView):
@@ -101,7 +108,7 @@ class UserSelf(MethodView):
     def get(self):
         """Return the authenticated user's profile."""
         user_id = get_jwt_identity()
-        return UserModel.query.get_or_404(user_id)
+        return _get_user_or_404(user_id)
 
     @jwt_required()
     @blp.arguments(UserUpdateSchema)
@@ -109,7 +116,7 @@ class UserSelf(MethodView):
     def put(self, user_data):
         """Update profile fields for the authenticated user."""
         user_id = get_jwt_identity()
-        user = UserModel.query.get_or_404(user_id)
+        user = _get_user_or_404(user_id)
 
         for field in user_data:
             setattr(user, field, user_data[field])
@@ -134,7 +141,7 @@ class UserAdmin(MethodView):
     @admin_required
     def delete(self, user_id):
         """Delete a user as an admin."""
-        user = UserModel.query.get_or_404(user_id)
+        user = _get_user_or_404(user_id)
 
         db.session.delete(user)
         db.session.commit()
@@ -204,7 +211,7 @@ class UserChangePassword(MethodView):
     def put(self, user_data):
         """Validate old password and persist the new password hash."""
         user_id = int(get_jwt_identity())
-        user = UserModel.query.get_or_404(user_id)
+        user = _get_user_or_404(user_id)
         if not pbkdf2_sha256.verify(user_data["old_password"], user.password):
             abort(401, message="Invalid credentials.")
 

@@ -1,0 +1,199 @@
+from datetime import date, timedelta
+
+
+def test_student_can_create_own_enrollment(
+    client,
+    create_user,
+    create_course,
+    auth_headers,
+):
+    student = create_user()
+    course = create_course()
+
+    response = client.post(
+        "/enrollments/",
+        json={"student_id": student.id, "course_id": course.id},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 201
+
+
+def test_student_cannot_create_enrollment_for_another_user(
+    client,
+    create_user,
+    create_course,
+    auth_headers,
+):
+    student = create_user()
+    other_student = create_user(email="other@example.com")
+    course = create_course()
+
+    response = client.post(
+        "/enrollments/",
+        json={"student_id": other_student.id, "course_id": course.id},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 403
+
+
+def test_admin_can_list_enrollments(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+):
+    admin = create_user(role="admin")
+    student = create_user()
+    course = create_course(title="Python Basics")
+    create_enrollment(student.id, course.id)
+
+    response = client.get("/enrollments/?search=Python", headers=auth_headers(admin))
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["pagination"]["total"] == 1
+
+
+def test_enrollment_detail_access_control(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+):
+    student = create_user(email="owner@example.com")
+    other_student = create_user(email="other@example.com")
+    course = create_course()
+    enrollment = create_enrollment(student.id, course.id)
+
+    owner_response = client.get(
+        f"/enrollments/{enrollment.id}",
+        headers=auth_headers(student),
+    )
+    assert owner_response.status_code == 200
+
+    forbidden_response = client.get(
+        f"/enrollments/{enrollment.id}",
+        headers=auth_headers(other_student),
+    )
+    assert forbidden_response.status_code == 403
+
+
+def test_admin_can_delete_enrollment(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+):
+    admin = create_user(role="admin")
+    student = create_user()
+    course = create_course()
+    enrollment = create_enrollment(student.id, course.id)
+
+    response = client.delete(
+        f"/enrollments/{enrollment.id}",
+        headers=auth_headers(admin, fresh=True),
+    )
+
+    assert response.status_code == 200
+
+
+def test_schedule_creation_updates_enrollment_dates_and_status(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+):
+    student = create_user()
+    course = create_course()
+    enrollment = create_enrollment(student.id, course.id, status="active")
+
+    future_date = date.today() + timedelta(days=7)
+    response = client.post(
+        "/schedules/",
+        json=[
+            {
+                "enrollment_id": enrollment.id,
+                "date": future_date.isoformat(),
+                "start_time": "10:00:00",
+                "end_time": "11:00:00",
+            }
+        ],
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 201
+
+    grouped_response = client.get("/enrollments/schedules", headers=auth_headers(student))
+    assert grouped_response.status_code == 200
+    grouped_payload = grouped_response.get_json()
+    assert len(grouped_payload) == 1
+    assert grouped_payload[0]["date"] == future_date.isoformat()
+
+
+def test_schedule_creation_rejects_mixed_enrollments(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+):
+    student = create_user()
+    course1 = create_course(title="A")
+    course2 = create_course(title="B")
+
+    enrollment1 = create_enrollment(student.id, course1.id)
+    enrollment2 = create_enrollment(student.id, course2.id)
+
+    response = client.post(
+        "/schedules/",
+        json=[
+            {
+                "enrollment_id": enrollment1.id,
+                "date": (date.today() + timedelta(days=1)).isoformat(),
+                "start_time": "09:00:00",
+                "end_time": "10:00:00",
+            },
+            {
+                "enrollment_id": enrollment2.id,
+                "date": (date.today() + timedelta(days=2)).isoformat(),
+                "start_time": "11:00:00",
+                "end_time": "12:00:00",
+            },
+        ],
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 400
+
+
+def test_schedule_detail_is_scoped_to_owner(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    create_schedule,
+    auth_headers,
+):
+    owner = create_user(email="owner@example.com")
+    other = create_user(email="other@example.com")
+    course = create_course()
+
+    enrollment = create_enrollment(owner.id, course.id)
+    schedule = create_schedule(enrollment.id)
+
+    owner_response = client.get(
+        f"/schedules/{schedule.id}",
+        headers=auth_headers(owner),
+    )
+    assert owner_response.status_code == 200
+
+    forbidden_response = client.get(
+        f"/schedules/{schedule.id}",
+        headers=auth_headers(other),
+    )
+    assert forbidden_response.status_code == 404

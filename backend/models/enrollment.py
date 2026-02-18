@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from db import db
 
 class Enrollment(db.Model):
@@ -13,7 +13,10 @@ class Enrollment(db.Model):
         default="active"
     )
 
-    start_date = db.Column(db.DateTime, default=datetime.utcnow)
+    start_date = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
     end_date = db.Column(db.DateTime)
 
     student = db.relationship("User", back_populates="enrollments")

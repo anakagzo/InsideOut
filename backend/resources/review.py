@@ -3,7 +3,7 @@
 from flask_smorest import Blueprint, abort
 from flask.views import MethodView
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from utils.decorators import role_required
+from utils.decorators import admin_required, role_required
 from models import Review, Course, Enrollment, User
 from db import db
 from schemas import ReviewSchema, ReviewCreateSchema, TutorReplySchema
@@ -14,6 +14,20 @@ blp = Blueprint(
     url_prefix="/courses/<int:course_id>/reviews",
     description="Review operations"
 )
+
+
+def _get_course_or_404(course_id):
+    course = db.session.get(Course, course_id)
+    if not course:
+        abort(404, message="Course not found.")
+    return course
+
+
+def _get_review_or_404(review_id):
+    review = db.session.get(Review, review_id)
+    if not review:
+        abort(404, message="Review not found.")
+    return review
 
 @blp.route("/")
 class ReviewList(MethodView):
@@ -27,7 +41,7 @@ class ReviewList(MethodView):
         """Create a review for a course if the user is enrolled and has not reviewed yet."""
         student_id = get_jwt_identity()
 
-        course = Course.query.get_or_404(course_id)
+        course = _get_course_or_404(course_id)
 
         # Check enrollment
         enrollment = Enrollment.query.filter_by(
@@ -40,7 +54,7 @@ class ReviewList(MethodView):
 
         # Prevent duplicate review
         existing = Review.query.filter_by(
-            student_id=student_id,
+            user_id=student_id,
             course_id=course_id
         ).first()
 
@@ -69,19 +83,17 @@ class TutorReplyResource(MethodView):
     """Tutor reply operations for reviews."""
 
     @jwt_required()
-    @role_required("tutor")
+    @admin_required
     @blp.arguments(TutorReplySchema)
     @blp.response(200, ReviewSchema)
     def put(self, reply_data, course_id, review_id):
-        """Set or update tutor reply for a review owned by the tutor's course."""
-        tutor_id = get_jwt_identity()
+        """Set or update tutor reply for a review in the specified course."""
 
-        review = Review.query.get_or_404(review_id)
-        course = Course.query.get_or_404(course_id)
+        review = _get_review_or_404(review_id)
+        _get_course_or_404(course_id)
 
-        # Ensure tutor owns the course
-        if course.tutor_id != tutor_id:
-            abort(403, message="You do not own this course.")
+        if review.course_id != course_id:
+            abort(400, message="Review does not belong to the specified course.")
 
         review.tutor_reply = reply_data["tutor_reply"]
         db.session.commit()

@@ -1,5 +1,9 @@
 from marshmallow import Schema, fields, validate
-from schemas.user import UserSchema
+
+
+class ReviewAuthorSchema(Schema):
+    id = fields.Int(dump_only=True)
+    initials = fields.Str(dump_only=True)
 
 class ReviewSchema(Schema):
     id = fields.Int(dump_only=True)
@@ -10,7 +14,7 @@ class ReviewSchema(Schema):
     tutor_reply = fields.Str(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
 
-    author = fields.Nested(lambda: UserSchema(only=("id", "initials")), dump_only=True)
+    author = fields.Nested(ReviewAuthorSchema, dump_only=True)
 
 class ReviewCreateSchema(Schema):
     rating = fields.Integer(required=True, validate=validate.Range(min=1, max=5))

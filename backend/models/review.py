@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from db import db
 
 class Review(db.Model):
@@ -11,7 +11,10 @@ class Review(db.Model):
     rating = db.Column(db.Integer, nullable=False)
     comment = db.Column(db.Text)
     tutor_reply = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
 
     user = db.relationship("User", back_populates="reviews")
     course = db.relationship("Course", back_populates="reviews")

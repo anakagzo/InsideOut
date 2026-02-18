@@ -15,6 +15,13 @@ from flask import request
 blp = Blueprint("Enrollments", "enrollments", url_prefix="/enrollments")
 
 
+def _get_enrollment_or_404(enrollment_id):
+    enrollment = db.session.get(Enrollment, enrollment_id)
+    if not enrollment:
+        abort(404, message="Enrollment not found.")
+    return enrollment
+
+
 @blp.route("/")
 class EnrollmentList(MethodView):
     """Collection operations for enrollments."""
@@ -99,7 +106,7 @@ class EnrollmentDetail(MethodView):
     def get(self, enrollment_id):
         """Get enrollment details if the caller owns the enrollment."""
         user_id = get_jwt_identity()
-        enrollment = Enrollment.query.get_or_404(enrollment_id)
+        enrollment = _get_enrollment_or_404(enrollment_id)
         if enrollment.student_id != user_id:
             abort(403, message="Access denied.")
         return enrollment
@@ -108,7 +115,7 @@ class EnrollmentDetail(MethodView):
     @admin_required 
     def delete(self, enrollment_id):
         """Delete an enrollment as an admin."""
-        enrollment = Enrollment.query.get_or_404(enrollment_id)
+        enrollment = _get_enrollment_or_404(enrollment_id)
         
         db.session.delete(enrollment)
         db.session.commit()
@@ -123,7 +130,7 @@ class EnrollmentSchedules(MethodView):
     def get(self):
         """Return schedule items grouped by date for the caller or all users (admin)."""
         user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             abort(404, message="User not found.")
         
@@ -141,9 +148,9 @@ class EnrollmentSchedules(MethodView):
                 date_key = schedule.date.isoformat()  # Use ISO format for date key
                 schedules_by_date[date_key].append({
                     "id": schedule.id,
-                    "date": schedule.date.isoformat(),
-                    "start_time": schedule.start_time.isoformat(),
-                    "end_time": schedule.end_time.isoformat(),
+                    "date": schedule.date,
+                    "start_time": schedule.start_time,
+                    "end_time": schedule.end_time,
                     "zoom_link": schedule.zoom_link,
                     "status": schedule.status
                 })
@@ -151,7 +158,7 @@ class EnrollmentSchedules(MethodView):
         # Convert to list of dicts with 'date' and 'schedules' keys
         result = [
             {
-                "date": date,
+                "date": datetime.strptime(date, "%Y-%m-%d").date(),
                 "schedules": schedules
             }
             for date, schedules in sorted(schedules_by_date.items())

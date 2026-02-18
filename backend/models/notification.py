@@ -9,3 +9,5 @@ class EmailNotificationSettings(db.Model):
     notify_on_schedule_change = db.Column(db.Boolean, default=True)
     notify_on_new_course = db.Column(db.Boolean, default=True)
     notify_on_meeting_reminder = db.Column(db.Boolean, default=True)
+
+    user = db.relationship("User", back_populates="notification_settings")

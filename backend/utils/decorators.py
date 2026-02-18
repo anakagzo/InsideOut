@@ -2,6 +2,7 @@ from functools import wraps
 from flask import jsonify
 from flask_jwt_extended import get_jwt, get_jwt_identity
 from flask_smorest import abort
+from db import db
 from models import User
 
 def admin_required(fn):
@@ -18,7 +19,7 @@ def role_required(role_name):
         @wraps(fn)
         def decorator(*args, **kwargs):
             user_id = get_jwt_identity()
-            user = User.query.get(user_id)
+            user = db.session.get(User, user_id)
 
             if not user or user.role != role_name:
                 abort(403, message="Access forbidden.")

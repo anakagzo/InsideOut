@@ -1,6 +1,5 @@
-from backend.models.review import Review
 from db import db
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import func, select
 
@@ -14,7 +13,10 @@ class Course(db.Model):
     preview_video_url = db.Column(db.Text)
     price = db.Column(db.Numeric(10,2), nullable=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
 
     reviews = db.relationship("Review", back_populates="course", cascade="all, delete-orphan")
     enrollments = db.relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
@@ -27,6 +29,8 @@ class Course(db.Model):
 
     @average_rating.expression
     def average_rating(cls):
+        from .review import Review
+
         return (
             select(func.coalesce(func.avg(Review.rating), 0.0))
             .where(Review.course_id == cls.id)

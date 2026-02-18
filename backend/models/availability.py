@@ -1,5 +1,5 @@
 from db import db
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class Availability(db.Model):
@@ -16,8 +16,16 @@ class Availability(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
 
     day_of_week = db.Column(db.Integer, nullable=False)  # 1-7: Monday-Sunday
-    month_start = db.Column(db.Integer, nullable=False, default=lambda: datetime.utcnow().month)
-    month_end = db.Column(db.Integer, nullable=False, default=lambda: datetime.utcnow().month)
+    month_start = db.Column(
+        db.Integer,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc).month,
+    )
+    month_end = db.Column(
+        db.Integer,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc).month,
+    )
 
     user = db.relationship("User", back_populates="availability")
     time_slots = db.relationship(

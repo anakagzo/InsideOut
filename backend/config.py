@@ -14,7 +14,11 @@ class BaseConfig:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     PROPAGATE_EXCEPTIONS = True
 
-    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "jose")
+    JWT_SECRET_KEY = os.getenv(
+        "JWT_SECRET_KEY",
+        "insideout-dev-jwt-secret-key-change-this-in-production-2026",
+    )
+    JWT_IDENTITY_CLAIM = "identity"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
 

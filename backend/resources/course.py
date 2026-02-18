@@ -37,14 +37,30 @@ def _default_course_image_url():
 
     return "/media/defaults/course-default.png"
 
+
+def _get_course_or_404(course_id):
+    course = db.session.get(Course, course_id)
+    if not course:
+        abort(404, message="Course not found.")
+    return course
+
+
+def _get_user_or_404(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404, message="User not found.")
+    return user
+
 @blp.route("/")
 class CourseList(MethodView):
     """Collection operations for courses."""
 
-    @blp.paginate()
-    @blp.response(200, CourseSchema(many=True))
-    def get(self, pagination_parameters):
+    @blp.response(200, CourseListResponseSchema)
+    def get(self):
         """List courses with optional search and enrollment-status filters."""
+        page = request.args.get("page", 1, type=int)
+        page_size = request.args.get("page_size", 10, type=int)
+
         # custom query parameters for search and filtering
         search = request.args.get("search", "").strip()
         type_filter = request.args.get("type")
@@ -73,7 +89,22 @@ class CourseList(MethodView):
                 )
             )
 
-        return query.order_by(Course.created_at.desc())
+        query = query.order_by(Course.created_at.desc())
+        pagination = query.paginate(
+            page=page,
+            per_page=page_size,
+            error_out=False
+        )
+
+        return {
+            "data": pagination.items,
+            "pagination": {
+                "page": pagination.page,
+                "page_size": pagination.per_page,
+                "total": pagination.total,
+                "total_pages": pagination.pages
+            }
+        }
 
     @jwt_required()
     @admin_required
@@ -135,10 +166,9 @@ class CourseDetail(MethodView):
     def get(self, course_id):
         """Retrieve a course with latest reviews attached."""
 
-        course = Course.query.get_or_404(course_id)
+        course = _get_course_or_404(course_id)
 
-        # attach latest 3 reviews
-        course.reviews = (
+        latest_reviews = (
             Review.query
             .filter_by(course_id=course_id)
             .order_by(Review.created_at.desc())
@@ -146,7 +176,26 @@ class CourseDetail(MethodView):
             .all()
         )
 
-        return course
+        return {
+            "id": course.id,
+            "title": course.title,
+            "description": course.description,
+            "image_url": course.image_url,
+            "preview_video_url": course.preview_video_url,
+            "price": course.price,
+            "created_at": course.created_at,
+            "average_rating": course.average_rating,
+            "reviews": [
+                {
+                    "id": review.id,
+                    "rating": review.rating,
+                    "comment": review.comment,
+                    "tutor_reply": review.tutor_reply,
+                    "created_at": review.created_at,
+                }
+                for review in latest_reviews
+            ],
+        }
 
 
 @blp.route("/<int:course_id>")
@@ -158,7 +207,7 @@ class CourseAdminEdit(MethodView):
     @blp.response(200, CourseSchema)
     def put(self, course_id):
         """Update a course using multipart form fields and optional media upload."""
-        course = Course.query.get_or_404(course_id)
+        course = _get_course_or_404(course_id)
 
         is_multipart = (request.content_type or "").startswith("multipart/form-data")
         if not is_multipart:
@@ -210,7 +259,7 @@ class CourseAdminEdit(MethodView):
     @admin_required
     def delete(self, course_id):
         """Delete a course."""
-        course = Course.query.get_or_404(course_id)
+        course = _get_course_or_404(course_id)
 
         db.session.delete(course)
         db.session.commit()
@@ -227,7 +276,7 @@ class SaveCourse(MethodView):
         """Save a course for the current user if not already saved."""
         user_id = get_jwt_identity()
 
-        Course.query.get_or_404(course_id)
+        _get_course_or_404(course_id)
 
         existing = SavedCourse.query.filter_by(
             user_id=user_id,
@@ -293,9 +342,9 @@ class CourseUserSchedules(MethodView):
     def get(self, course_id):
         """Return schedules for the caller scoped to the given course."""
         user_id = get_jwt_identity()
-        User.query.get_or_404(user_id)
+        _get_user_or_404(user_id)
 
-        Course.query.get_or_404(course_id)
+        _get_course_or_404(course_id)
 
         schedules = (
             Schedule.query

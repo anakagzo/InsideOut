@@ -1,5 +1,5 @@
 from db import db
-from datetime import datetime
+from datetime import datetime, timezone
 
 class User(db.Model):
     __tablename__ = "users"
@@ -17,7 +17,10 @@ class User(db.Model):
 
     role = db.Column(db.Enum("student", "admin", name="user_roles"), default="student")
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
 
     enrollments = db.relationship("Enrollment", back_populates="student", cascade="all, delete")
     reviews = db.relationship("Review", back_populates="user", cascade="all, delete")

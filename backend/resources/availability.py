@@ -3,13 +3,20 @@
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import get_jwt_identity, jwt_required
-from datetime import datetime
+from datetime import datetime, timezone
 from schemas import AvailabilitySchema, AvailabilityUpsertSchema
 from models import Availability, AvailabilityTimeSlot, AvailabilityUnavailableDate, User
 from db import db
 from utils.decorators import admin_required
 
 blp = Blueprint("Availability", "availability", url_prefix="/availability")
+
+
+def _get_user_or_404(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404, message="User not found.")
+    return user
 
 
 @blp.route("/")
@@ -22,7 +29,7 @@ class AvailabilityList(MethodView):
     def get(self):
         """Return the current availability window, time slots, and unavailable dates."""
         user_id = int(get_jwt_identity())
-        admin_user = User.query.get_or_404(user_id)
+        admin_user = _get_user_or_404(user_id)
 
         availability_days = (
             Availability.query.filter_by(user_id=user_id)
@@ -54,7 +61,7 @@ class AvailabilityList(MethodView):
         """Replace availability data using an upsert/diff strategy per weekday/date."""
         # Identify caller and enforce admin-only write access.
         user_id = int(get_jwt_identity())
-        admin_user = User.query.get_or_404(user_id)
+        admin_user = _get_user_or_404(user_id)
 
         if admin_user.role != "admin":
             abort(403, message="Only admins can manage availability.")
@@ -62,7 +69,7 @@ class AvailabilityList(MethodView):
         # Read request payload with safe defaults.
         availability_payload = data.get("availability", [])
         unavailable_dates_payload = data.get("unavailable_dates", [])
-        current_month = datetime.utcnow().month
+        current_month = datetime.now(timezone.utc).month
         month_start = data.get("month_start", current_month)
         month_end = data.get("month_end", month_start)
 
