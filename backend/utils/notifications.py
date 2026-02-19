@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date, datetime, timedelta
+from datetime import UTC
 
 from flask import current_app
 
@@ -224,7 +225,7 @@ def process_meeting_reminders() -> int:
     window_seconds = max(15, int(current_app.config.get("MEETING_REMINDER_WINDOW_SECONDS", 90)))
     _, _, max_lead_minutes = _meeting_reminder_bounds()
 
-    now = datetime.utcnow()
+    now = datetime.now(UTC).replace(tzinfo=None)
     latest_start = now + timedelta(minutes=max_lead_minutes, seconds=window_seconds)
     candidate_dates = {now.date(), latest_start.date()}
     candidates = (

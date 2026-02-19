@@ -1,8 +1,9 @@
 """Payment resource endpoints."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 try:
 	import stripe
@@ -32,6 +33,10 @@ blp = Blueprint("Payments", "payments", url_prefix="/payments")
 logger = logging.getLogger(__name__)
 
 
+def _utcnow_naive() -> datetime:
+	return datetime.now(UTC).replace(tzinfo=None)
+
+
 def _get_user_or_404(user_id):
 	user = db.session.get(User, user_id)
 	if not user:
@@ -56,6 +61,18 @@ def _require_stripe_configured():
 	stripe.api_key = secret_key
 	publishable_key = current_app.config.get("STRIPE_PUBLISHABLE_KEY", "")
 	return publishable_key
+
+
+def _get_stripe_client() -> Any:
+	_require_stripe_configured()
+	return stripe
+
+
+def _stripe_error_message(exc: Exception, fallback: str) -> str:
+	message = getattr(exc, "user_message", None)
+	if isinstance(message, str) and message.strip():
+		return message
+	return fallback
 
 
 def _session_value(session, key, default=None):
@@ -87,12 +104,11 @@ def _finalize_paid_checkout_session(session, expected_user_id=None):
 
 	enrollment = Enrollment.query.filter_by(student_id=session_user_id, course_id=course.id).first()
 	if not enrollment:
-		enrollment = Enrollment(
-			student_id=session_user_id,
-			course_id=course.id,
-			status="active",
-			start_date=datetime.now(timezone.utc).replace(tzinfo=None),
-		)
+		enrollment = Enrollment()
+		enrollment.student_id = session_user_id
+		enrollment.course_id = course.id
+		enrollment.status = "active"
+		enrollment.start_date = _utcnow_naive()
 		db.session.add(enrollment)
 		try:
 			db.session.commit()
@@ -124,6 +140,8 @@ def _finalize_paid_checkout_session(session, expected_user_id=None):
 
 def _get_onboarding_serializer():
 	secret_key = current_app.config.get("ONBOARDING_TOKEN_SECRET") or current_app.config.get("JWT_SECRET_KEY")
+	if not secret_key:
+		abort(500, message="Onboarding token secret is not configured.")
 	return URLSafeTimedSerializer(secret_key=secret_key, salt="insideout-onboarding-token")
 
 
@@ -148,6 +166,7 @@ class StripeCheckoutSessionCreate(MethodView):
 	def post(self, data):
 		user_id = int(get_jwt_identity())
 		publishable_key = _require_stripe_configured()
+		stripe_client = _get_stripe_client()
 		if not publishable_key:
 			abort(500, message="Stripe publishable key is not configured.")
 		user = _get_user_or_404(user_id)
@@ -167,7 +186,7 @@ class StripeCheckoutSessionCreate(MethodView):
 			abort(400, message="Invalid course price.")
 
 		try:
-			session = stripe.checkout.Session.create(
+			session = stripe_client.checkout.Session.create(
 				mode="payment",
 				customer_email=user.email,
 				metadata={
@@ -190,9 +209,9 @@ class StripeCheckoutSessionCreate(MethodView):
 				success_url=success_url,
 				cancel_url=cancel_url,
 			)
-		except stripe.error.StripeError as exc:
+		except Exception as exc:
 			logger.exception("Stripe checkout session creation failed", extra={"user_id": user_id, "course_id": course.id})
-			abort(502, message=str(exc.user_message or "Unable to create checkout session."))
+			abort(502, message=_stripe_error_message(exc, "Unable to create checkout session."))
 
 		return {
 			"session_id": session.id,
@@ -210,12 +229,12 @@ class StripeCheckoutFinalize(MethodView):
 	@blp.response(200, StripeFinalizeResponseSchema)
 	def post(self, data):
 		user_id = int(get_jwt_identity())
-		_require_stripe_configured()
+		stripe_client = _get_stripe_client()
 
 		try:
-			session = stripe.checkout.Session.retrieve(data["session_id"])
-		except stripe.error.StripeError as exc:
-			abort(502, message=str(exc.user_message or "Unable to verify Stripe session."))
+			session = stripe_client.checkout.Session.retrieve(data["session_id"])
+		except Exception as exc:
+			abort(502, message=_stripe_error_message(exc, "Unable to verify Stripe session."))
 
 		enrollment, onboarding_token = _finalize_paid_checkout_session(
 			session,
@@ -234,7 +253,7 @@ class StripeWebhook(MethodView):
 	"""Stripe webhook receiver for checkout completion."""
 
 	def post(self):
-		_require_stripe_configured()
+		stripe_client = _get_stripe_client()
 		webhook_secret = current_app.config.get("STRIPE_WEBHOOK_SECRET", "")
 		if not webhook_secret:
 			abort(500, message="Stripe webhook secret is not configured.")
@@ -243,10 +262,10 @@ class StripeWebhook(MethodView):
 		signature = request.headers.get("Stripe-Signature", "")
 
 		try:
-			event = stripe.Webhook.construct_event(payload, signature, webhook_secret)
+			event = stripe_client.Webhook.construct_event(payload, signature, webhook_secret)
 		except ValueError:
 			abort(400, message="Invalid webhook payload.")
-		except stripe.error.SignatureVerificationError:
+		except Exception:
 			abort(400, message="Invalid webhook signature.")
 
 		event_type = event.get("type") if isinstance(event, dict) else getattr(event, "type", None)

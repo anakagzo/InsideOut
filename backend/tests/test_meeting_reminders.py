@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from db import db
 from models.notification import EmailNotification, EmailNotificationSettings
@@ -25,7 +25,7 @@ def test_meeting_reminder_queues_for_student_and_tutor_by_default(
         course = create_course(title="Reminder Course")
         enrollment = create_enrollment(student.id, course.id)
 
-        reminder_start = (datetime.utcnow() + timedelta(minutes=60)).replace(second=0, microsecond=0)
+        reminder_start = (datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=60)).replace(second=0, microsecond=0)
         schedule = create_schedule(
             enrollment.id,
             date=reminder_start.date(),
@@ -81,7 +81,7 @@ def test_meeting_reminder_respects_user_settings_and_marks_processed(
         db.session.add(tutor_settings)
         db.session.commit()
 
-        reminder_start = (datetime.utcnow() + timedelta(minutes=30)).replace(second=0, microsecond=0)
+        reminder_start = (datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=30)).replace(second=0, microsecond=0)
         schedule = create_schedule(
             enrollment.id,
             date=reminder_start.date(),
@@ -117,7 +117,7 @@ def test_meeting_reminder_is_not_sent_twice(
         course = create_course(title="Reminder Dedup Course")
         enrollment = create_enrollment(student.id, course.id)
 
-        reminder_start = (datetime.utcnow() + timedelta(minutes=60)).replace(second=0, microsecond=0)
+        reminder_start = (datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=60)).replace(second=0, microsecond=0)
         create_schedule(
             enrollment.id,
             date=reminder_start.date(),

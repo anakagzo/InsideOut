@@ -2,6 +2,7 @@
 import logging
 from datetime import datetime
 from datetime import timedelta
+from datetime import UTC
 from uuid import uuid4
 
 from flask import current_app
@@ -14,6 +15,10 @@ from db import db
 from models.notification import EmailNotification
 
 logger = logging.getLogger(__name__)
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def queue_email(to_email: str, subject: str, body: str, reference_key: str | None = None):
@@ -74,7 +79,7 @@ def process_pending_emails():
     max_retries = current_app.config["EMAIL_MAX_RETRIES"]
     batch_size = current_app.config["EMAIL_BATCH_SIZE"]
     claim_ttl_seconds = current_app.config["EMAIL_PROCESSING_CLAIM_TTL_SECONDS"]
-    now = datetime.utcnow()
+    now = _utcnow_naive()
 
     stale_threshold = now - timedelta(seconds=claim_ttl_seconds)
     reclaimed_count = EmailNotification.query.filter(
@@ -130,7 +135,7 @@ def process_pending_emails():
             _send_via_sendgrid(email.to_email, email.subject, email.body)
 
             email.status = "sent"
-            email.sent_at = datetime.utcnow()
+            email.sent_at = _utcnow_naive()
             email.last_error = None
             email.processing_claim_token = None
             email.claimed_at = None

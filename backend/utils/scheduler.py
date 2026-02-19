@@ -28,11 +28,11 @@ def init_scheduler(app):
     - Flask debug reloader parent process
     """
     if "PYTEST_CURRENT_TEST" in os.environ:
-        app.logger.info("Email scheduler disabled under pytest")
+        app.logger.info("Background scheduler jobs disabled under pytest")
         return
 
     if not app.config.get("EMAIL_SCHEDULER_ENABLED", True):
-        app.logger.info("Email scheduler disabled by configuration")
+        app.logger.info("Background scheduler jobs disabled by configuration")
         return
 
     if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":

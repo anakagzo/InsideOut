@@ -1,5 +1,10 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from db import db
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 class Enrollment(db.Model):
     __tablename__ = "enrollments"
@@ -15,7 +20,7 @@ class Enrollment(db.Model):
 
     start_date = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        default=_utcnow_naive,
     )
     end_date = db.Column(db.DateTime)
 

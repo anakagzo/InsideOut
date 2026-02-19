@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from db import db
 from models.notification import EmailNotification
@@ -23,7 +23,7 @@ def test_worker_skips_rows_claimed_by_another_worker(app, monkeypatch):
         already_claimed.body = "claimed"
         already_claimed.status = "processing"
         already_claimed.processing_claim_token = "worker-a"
-        already_claimed.claimed_at = datetime.utcnow()
+        already_claimed.claimed_at = datetime.now(UTC).replace(tzinfo=None)
 
         pending = EmailNotification()
         pending.to_email = "pending@example.com"
@@ -61,7 +61,7 @@ def test_stale_claim_is_reclaimed_and_processed(app, monkeypatch):
         stale_claimed.body = "stale"
         stale_claimed.status = "processing"
         stale_claimed.processing_claim_token = "worker-old"
-        stale_claimed.claimed_at = datetime.utcnow() - timedelta(minutes=10)
+        stale_claimed.claimed_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=10)
 
         db.session.add(stale_claimed)
         db.session.commit()

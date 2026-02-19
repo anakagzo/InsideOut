@@ -1,5 +1,9 @@
 from db import db
-from datetime import datetime
+from datetime import datetime, UTC
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 class EmailNotificationSettings(db.Model):
     __tablename__ = "email_notification_settings"
@@ -30,5 +34,5 @@ class EmailNotification(db.Model):
     processing_claim_token = db.Column(db.String(64), index=True)
     claimed_at = db.Column(db.DateTime)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow_naive)
     sent_at = db.Column(db.DateTime)

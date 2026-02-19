@@ -1,7 +1,13 @@
+from datetime import UTC, datetime
+from typing import Any, cast
+
 from db import db
-from datetime import datetime, timezone
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import func, select
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 class Course(db.Model):
     __tablename__ = "courses"
@@ -15,7 +21,7 @@ class Course(db.Model):
 
     created_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        default=_utcnow_naive,
     )
 
     reviews = db.relationship("Review", back_populates="course", cascade="all, delete-orphan")
@@ -23,18 +29,18 @@ class Course(db.Model):
 
     @hybrid_property
     def average_rating(self):
-        if not self.reviews:
+        reviews = cast(list[Any], self.reviews)
+        if not reviews:
             return 0.0
-        return sum(r.rating for r in self.reviews) / len(self.reviews)
+        return sum(r.rating for r in reviews) / len(reviews)
 
     @average_rating.expression
-    def average_rating(cls):
+    def average_rating_expression(cls):
         from .review import Review
 
         return (
             select(func.coalesce(func.avg(Review.rating), 0.0))
             .where(Review.course_id == cls.id)
-            .correlate(cls)
             .scalar_subquery()
         )
 

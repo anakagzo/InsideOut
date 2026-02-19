@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from itertools import count
 from pathlib import Path
 import sys
@@ -10,6 +10,10 @@ from passlib.hash import pbkdf2_sha256
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 for path_item in (str(REPO_ROOT), str(BACKEND_DIR)):
     if path_item not in sys.path:
@@ -112,7 +116,7 @@ def create_enrollment():
         enrollment.status = overrides.pop("status", "active")
         enrollment.start_date = overrides.pop(
             "start_date",
-            datetime.now(timezone.utc).replace(tzinfo=None),
+            _utcnow_naive(),
         )
         enrollment.end_date = overrides.pop("end_date", None)
 
