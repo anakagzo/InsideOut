@@ -1,5 +1,8 @@
 from datetime import date, timedelta
 
+from db import db
+from models.notification import EmailNotificationSettings
+
 
 def test_student_can_create_own_enrollment(
     client,
@@ -197,3 +200,48 @@ def test_schedule_detail_is_scoped_to_owner(
         headers=auth_headers(other),
     )
     assert forbidden_response.status_code == 404
+
+
+def test_schedule_create_skips_email_when_schedule_notifications_disabled(
+    client,
+    app,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+    monkeypatch,
+):
+    import utils.notifications as notifications_module
+
+    queued = []
+    monkeypatch.setattr(notifications_module, "queue_email", lambda to_email, subject, body: queued.append((to_email, subject, body)))
+
+    admin = create_user(role="admin", email="schedule-notify-admin@example.com")
+    student = create_user(email="schedule-notify-off@example.com")
+    course = create_course()
+    enrollment = create_enrollment(student.id, course.id, status="active")
+
+    with app.app_context():
+        settings = EmailNotificationSettings()
+        settings.user_id = student.id
+        settings.notify_on_schedule_change = False
+        db.session.add(settings)
+        db.session.commit()
+
+    response = client.post(
+        "/schedules/",
+        json=[
+            {
+                "enrollment_id": enrollment.id,
+                "date": (date.today() + timedelta(days=7)).isoformat(),
+                "start_time": "10:00:00",
+                "end_time": "11:00:00",
+            }
+        ],
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 201
+    recipients = {item[0] for item in queued}
+    assert student.email not in recipients
+    assert admin.email in recipients

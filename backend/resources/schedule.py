@@ -8,6 +8,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from models import Schedule, User, Enrollment
 from schemas import ScheduleSchema
 from db import db
+from utils.notifications import notify_schedule_created
 
 blp = Blueprint("Schedules", "schedules", url_prefix="/schedules")
 logger = logging.getLogger(__name__)
@@ -97,6 +98,16 @@ class ScheduleList(MethodView):
         # Update enrollment status based on dates
         enrollment.status = "active" if datetime.now(timezone.utc).date() <= max_date else "completed"
         db.session.commit()
+        queued_count = notify_schedule_created(
+            student=user,
+            course_title=enrollment.course.title,
+            schedule_count=len(schedules),
+            first_date=min(s.date for s in schedules) if schedules else None,
+        )
+        logger.info(
+            "Schedule notifications queued",
+            extra={"user_id": user_id, "enrollment_id": enrollment_id, "queued_count": queued_count},
+        )
         logger.info("Schedule create completed", extra={"user_id": user_id, "enrollment_id": enrollment_id, "count": len(schedules)})
         return schedules
 

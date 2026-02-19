@@ -56,6 +56,7 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
     schedulingOnboarding: true,
     newCourseAdded: false,
     meetingReminder: true,
+    meetingReminderLeadMinutes: 60,
   });
 
   const [availabilitySlots, setAvailabilitySlots] = useState([
@@ -90,6 +91,7 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
       schedulingOnboarding: notificationSettings.notify_on_schedule_change,
       newCourseAdded: notificationSettings.notify_on_new_course,
       meetingReminder: notificationSettings.notify_on_meeting_reminder,
+      meetingReminderLeadMinutes: notificationSettings.meeting_reminder_lead_minutes ?? 60,
     });
   }, [notificationSettings]);
 
@@ -133,6 +135,7 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
           notify_on_schedule_change: notifications.schedulingOnboarding,
           notify_on_new_course: notifications.newCourseAdded,
           notify_on_meeting_reminder: notifications.meetingReminder,
+          meeting_reminder_lead_minutes: Math.max(30, Math.min(1440, notifications.meetingReminderLeadMinutes)),
         }),
       ).unwrap();
       toast.success("Notification settings saved!");
@@ -243,6 +246,9 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
         <p className="text-sm text-muted-foreground">
           Manage your email notification preferences.
         </p>
+        <p className="text-xs text-muted-foreground">
+          Meeting reminders are enabled by default and are sent 1 hour before your meeting. You can customize this between 30 minutes and 24 hours.
+        </p>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
@@ -273,8 +279,8 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
 
           <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
             <div>
-              <p className="text-sm font-medium text-card-foreground">30-Minute Meeting Reminder</p>
-              <p className="text-xs text-muted-foreground">Reminder before scheduled meetings</p>
+              <p className="text-sm font-medium text-card-foreground">Meeting Reminder</p>
+              <p className="text-xs text-muted-foreground">Reminder before scheduled meetings (default 1 hour)</p>
             </div>
             <Switch
               checked={notifications.meetingReminder}
@@ -282,6 +288,29 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
                 setNotifications({ ...notifications, meetingReminder: checked })
               }
             />
+          </div>
+
+          <div className="p-3 bg-muted rounded-lg space-y-2">
+            <Label htmlFor="meeting-reminder-lead" className="text-sm font-medium text-card-foreground">
+              Reminder lead time (minutes)
+            </Label>
+            <Input
+              id="meeting-reminder-lead"
+              type="number"
+              min={30}
+              max={1440}
+              value={notifications.meetingReminderLeadMinutes}
+              onChange={(event) => {
+                const nextValue = Number(event.target.value);
+                const safeValue = Number.isFinite(nextValue) ? nextValue : 60;
+                setNotifications({
+                  ...notifications,
+                  meetingReminderLeadMinutes: Math.max(30, Math.min(1440, safeValue)),
+                });
+              }}
+              disabled={!notifications.meetingReminder}
+            />
+            <p className="text-xs text-muted-foreground">Minimum 30, maximum 1440 (24 hours).</p>
           </div>
 
           <div className="flex items-center justify-between p-3 bg-muted rounded-lg">

@@ -9,3 +9,5 @@ Flask-Migrate
 pytest
 pytest-cov
 stripe
+APScheduler
+sendgrid

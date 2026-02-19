@@ -1,5 +1,8 @@
 from datetime import date, time
 
+from db import db
+from models.notification import EmailNotificationSettings
+
 
 def test_list_courses_is_public(client, create_course):
     create_course(title="Course A")
@@ -146,3 +149,43 @@ def test_course_user_schedules_are_scoped_to_current_user(
     schedules = response.get_json()
     assert len(schedules) == 1
     assert schedules[0]["start_time"] == "09:00:00"
+
+
+def test_new_course_notification_respects_student_settings(
+    client,
+    app,
+    create_user,
+    auth_headers,
+    monkeypatch,
+):
+    import utils.notifications as notifications_module
+
+    queued = []
+    monkeypatch.setattr(notifications_module, "queue_email", lambda to_email, subject, body: queued.append((to_email, subject, body)))
+
+    admin = create_user(role="admin", email="admin-course-notify@example.com")
+    student_opt_in = create_user(role="student", email="student-opt-in@example.com")
+    student_opt_out = create_user(role="student", email="student-opt-out@example.com")
+
+    with app.app_context():
+        settings = EmailNotificationSettings()
+        settings.user_id = student_opt_out.id
+        settings.notify_on_new_course = False
+        db.session.add(settings)
+        db.session.commit()
+
+    response = client.post(
+        "/courses/",
+        data={
+            "title": "InsideOut Fresh Course",
+            "description": "Brand new course",
+            "price": "99.99",
+        },
+        headers=auth_headers(admin, fresh=True),
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 201
+    queued_emails = [entry[0] for entry in queued]
+    assert student_opt_in.email in queued_emails
+    assert student_opt_out.email not in queued_emails

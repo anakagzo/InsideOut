@@ -219,6 +219,7 @@ export interface NotificationSettings {
   notify_on_schedule_change: boolean;
   notify_on_new_course: boolean;
   notify_on_meeting_reminder: boolean;
+  meeting_reminder_lead_minutes: number;
 }
 
 export interface NotificationSettingsPayload {
@@ -227,6 +228,7 @@ export interface NotificationSettingsPayload {
   notify_on_schedule_change?: boolean;
   notify_on_new_course?: boolean;
   notify_on_meeting_reminder?: boolean;
+  meeting_reminder_lead_minutes?: number;
 }
 
 export interface AvailabilityTimeSlot {

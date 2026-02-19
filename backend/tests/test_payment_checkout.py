@@ -1,5 +1,8 @@
 from types import SimpleNamespace
 
+from db import db
+from models.notification import EmailNotificationSettings
+
 
 def _mock_stripe(monkeypatch, payment_module, *, create_session=None, retrieve_session=None):
     class _MockSessionApi:
@@ -162,3 +165,96 @@ def test_webhook_checkout_completed_creates_enrollment(
     assert enrollments_response.status_code == 200
     payload = enrollments_response.get_json()
     assert payload["pagination"]["total"] == 1
+
+
+def test_finalize_payment_queues_email_when_enabled(
+    client,
+    app,
+    create_user,
+    create_course,
+    auth_headers,
+    monkeypatch,
+):
+    import resources.payment as payment_resource
+    import utils.notifications as notifications_module
+
+    queued = []
+    monkeypatch.setattr(notifications_module, "queue_email", lambda to_email, subject, body: queued.append((to_email, subject, body)))
+
+    admin = create_user(role="admin", email="notify-payment-admin@example.com")
+    user = create_user(role="student", email="notify-payment@example.com")
+    course = create_course(title="Notify Payment Course", price="199.00")
+
+    session = SimpleNamespace(
+        id="cs_notify_123",
+        payment_status="paid",
+        metadata={"user_id": str(user.id), "course_id": str(course.id)},
+    )
+    _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
+
+    app.config.update(
+        STRIPE_SECRET_KEY="sk_test_123",
+        STRIPE_PUBLISHABLE_KEY="pk_test_123",
+        ONBOARDING_TOKEN_SECRET="token-secret",
+    )
+
+    response = client.post(
+        "/payments/stripe/finalize",
+        json={"session_id": "cs_notify_123"},
+        headers=auth_headers(user),
+    )
+
+    assert response.status_code == 200
+    recipients = {item[0] for item in queued}
+    assert user.email in recipients
+    assert admin.email in recipients
+
+
+def test_finalize_payment_skips_email_when_disabled(
+    client,
+    app,
+    create_user,
+    create_course,
+    auth_headers,
+    monkeypatch,
+):
+    import resources.payment as payment_resource
+    import utils.notifications as notifications_module
+
+    queued = []
+    monkeypatch.setattr(notifications_module, "queue_email", lambda to_email, subject, body: queued.append((to_email, subject, body)))
+
+    admin = create_user(role="admin", email="notify-off-admin@example.com")
+    user = create_user(role="student", email="notify-off@example.com")
+    course = create_course(title="Notify Off Course", price="79.00")
+
+    with app.app_context():
+        settings = EmailNotificationSettings()
+        settings.user_id = user.id
+        settings.notify_on_new_payment = False
+        db.session.add(settings)
+        db.session.commit()
+
+    session = SimpleNamespace(
+        id="cs_notify_off_123",
+        payment_status="paid",
+        metadata={"user_id": str(user.id), "course_id": str(course.id)},
+    )
+    _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
+
+    app.config.update(
+        STRIPE_SECRET_KEY="sk_test_123",
+        STRIPE_PUBLISHABLE_KEY="pk_test_123",
+        ONBOARDING_TOKEN_SECRET="token-secret",
+    )
+
+    response = client.post(
+        "/payments/stripe/finalize",
+        json={"session_id": "cs_notify_off_123"},
+        headers=auth_headers(user),
+    )
+
+    assert response.status_code == 200
+    recipients = {item[0] for item in queued}
+    assert user.email not in recipients
+    assert admin.email in recipients

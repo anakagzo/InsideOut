@@ -1,6 +1,7 @@
 """Endpoints for managing email notification preferences."""
 
 import logging
+from flask import current_app
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -79,5 +80,12 @@ class EmailNotificationSettingsGet(MethodView):
         if not settings:
             settings = EmailNotificationSettings()
             settings.user_id = user_id
+            settings.notify_on_new_payment = True
+            settings.notify_on_schedule_change = True
+            settings.notify_on_new_course = True
+            settings.notify_on_meeting_reminder = True
+            settings.meeting_reminder_lead_minutes = int(
+                current_app.config.get("MEETING_REMINDER_DEFAULT_LEAD_MINUTES", 60)
+            )
 
         return settings

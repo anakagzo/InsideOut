@@ -2,6 +2,13 @@ import os
 from datetime import timedelta
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 class BaseConfig:
     API_TITLE = "Stores REST API"
     API_VERSION = "v1"
@@ -62,7 +69,23 @@ class BaseConfig:
     ONBOARDING_TOKEN_SECRET = os.getenv("ONBOARDING_TOKEN_SECRET", "")
     ONBOARDING_TOKEN_TTL_SECONDS = int(os.getenv("ONBOARDING_TOKEN_TTL_SECONDS", "172800"))
 
+    # ===== EMAIL SETTINGS =====
+    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+    EMAIL_FROM = os.getenv("EMAIL_FROM")  # e.g. noreply@yourdomain.com
 
+    # ===== EMAIL RETRY SETTINGS =====
+    EMAIL_SCHEDULER_ENABLED = _env_bool("EMAIL_SCHEDULER_ENABLED", True)
+    EMAIL_MAX_RETRIES = int(os.getenv("EMAIL_MAX_RETRIES", 3))
+    EMAIL_RETRY_INTERVAL_SECONDS = int(os.getenv("EMAIL_RETRY_INTERVAL_SECONDS", 30))
+    EMAIL_BATCH_SIZE = int(os.getenv("EMAIL_BATCH_SIZE", 50))
+    EMAIL_PROCESSING_CLAIM_TTL_SECONDS = int(os.getenv("EMAIL_PROCESSING_CLAIM_TTL_SECONDS", 300))
+    MEETING_REMINDER_CHECK_INTERVAL_SECONDS = int(os.getenv("MEETING_REMINDER_CHECK_INTERVAL_SECONDS", 30))
+    MEETING_REMINDER_WINDOW_SECONDS = int(os.getenv("MEETING_REMINDER_WINDOW_SECONDS", 90))
+    MEETING_REMINDER_DEFAULT_LEAD_MINUTES = int(os.getenv("MEETING_REMINDER_DEFAULT_LEAD_MINUTES", 60))
+    MEETING_REMINDER_MIN_LEAD_MINUTES = int(os.getenv("MEETING_REMINDER_MIN_LEAD_MINUTES", 30))
+    MEETING_REMINDER_MAX_LEAD_MINUTES = int(os.getenv("MEETING_REMINDER_MAX_LEAD_MINUTES", 1440))
+
+    
 class DevelopmentConfig(BaseConfig):
     DEBUG = True
     ENV = "development"

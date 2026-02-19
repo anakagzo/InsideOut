@@ -17,7 +17,7 @@ from resources.schedule import blp as ScheduleBlueprint
 from resources.availability import blp as AvailabilityBlueprint 
 from resources.notification import blp as NotificationBlueprint
 from resources.payment import blp as PaymentBlueprint
-
+from utils.scheduler import init_scheduler
 
 def _configure_logging(app):
     level_name = str(app.config.get("LOG_LEVEL", "INFO")).upper()
@@ -56,6 +56,8 @@ def create_app(db_url=None):
     db.init_app(app)
     migrate = Migrate(app, db)
     api = Api(app)
+
+    init_scheduler(app)
 
     #JWTManager(app)
     jwt = JWTManager(app)

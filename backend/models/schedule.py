@@ -12,5 +12,6 @@ class Schedule(db.Model):
 
     zoom_link = db.Column(db.Text)
     status = db.Column(db.Enum("scheduled", "reschedule_requested", name="schedule_status"), default="scheduled")
+    reminder_sent_at = db.Column(db.DateTime)
 
     enrollment = db.relationship("Enrollment", back_populates="schedules")

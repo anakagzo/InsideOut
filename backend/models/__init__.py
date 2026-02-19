@@ -4,7 +4,7 @@ from models.enrollment import Enrollment
 from models.review import Review
 from models.schedule import Schedule
 from models.availability import Availability, AvailabilityTimeSlot, AvailabilityUnavailableDate
-from models.notification import EmailNotificationSettings
+from models.notification import EmailNotificationSettings, EmailNotification
 
 
 

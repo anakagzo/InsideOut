@@ -204,6 +204,7 @@ def test_notification_settings_upsert_and_get(
             "notify_on_schedule_change": True,
             "notify_on_new_course": False,
             "notify_on_meeting_reminder": True,
+            "meeting_reminder_lead_minutes": 45,
         },
         headers=auth_headers(user),
     )
@@ -215,6 +216,7 @@ def test_notification_settings_upsert_and_get(
     payload = get_response.get_json()
     assert payload["user_id"] == user.id
     assert payload["notify_on_new_payment"] is False
+    assert payload["meeting_reminder_lead_minutes"] == 45
 
 
 def test_notification_settings_get_returns_defaults_when_missing(
@@ -228,3 +230,4 @@ def test_notification_settings_get_returns_defaults_when_missing(
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["user_id"] == user.id
+    assert payload["meeting_reminder_lead_minutes"] == 60

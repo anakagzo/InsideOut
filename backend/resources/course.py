@@ -13,6 +13,7 @@ from db import db
 from schemas import CourseSchema, CourseDetailSchema, CourseListResponseSchema, ScheduleSchema
 from utils.decorators import admin_required
 from utils.media_upload import MediaUploadService
+from utils.notifications import notify_new_course_published
 
 blp = Blueprint("Courses", "courses", url_prefix="/courses")
 
@@ -165,6 +166,7 @@ class CourseList(MethodView):
 
         db.session.add(course)
         db.session.commit()
+        notify_new_course_published(course.title)
         logger.info("Course created", extra={"course_id": course.id})
         return course
 
