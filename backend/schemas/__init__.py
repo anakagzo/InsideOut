@@ -10,7 +10,7 @@ from schemas.course import CourseSchema, CourseDetailSchema, CourseListResponseS
 from schemas.enrollment import EnrollmentSchema, ScheduleItemSchema, GroupedScheduleSchema, EnrollmentListResponseSchema
 from schemas.notification import NotificationSchema
 from schemas.review import ReviewSchema, ReviewCreateSchema, TutorReplySchema
-from schemas.schedule import ScheduleSchema
+from schemas.schedule import ScheduleSchema, ScheduleChangeRequestSchema, ScheduleChangeRequestResponseSchema
 from schemas.payment import (
 	StripeCheckoutSessionRequestSchema,
 	StripeCheckoutSessionResponseSchema,

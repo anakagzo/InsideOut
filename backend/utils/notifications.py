@@ -145,6 +145,39 @@ def notify_schedule_created(student: User, course_title: str, schedule_count: in
     return queued_count
 
 
+def notify_schedule_change_requested(student: User, schedule: Schedule, subject: str, comments: str) -> int:
+    recipients = User.query.filter(User.role == "admin").all()
+    if not recipients:
+        return 0
+
+    enrollment = schedule.enrollment
+    course_title = enrollment.course.title if enrollment and enrollment.course else f"Enrollment #{schedule.enrollment_id}"
+    schedule_date = schedule.date.isoformat()
+    schedule_time = f"{schedule.start_time.strftime('%H:%M')} - {schedule.end_time.strftime('%H:%M')}"
+    comments_html = comments.strip() if comments else "No additional comments provided."
+
+    queued_count = 0
+    for admin in recipients:
+        email_subject = f"Schedule change request: {subject}"
+        body = (
+            f"<p>Hi {admin.first_name},</p>"
+            "<p>A student requested a schedule change.</p>"
+            f"<p><strong>Student:</strong> {student.first_name} {student.last_name}<br/>"
+            f"<strong>Email:</strong> {student.email}<br/>"
+            f"<strong>Course:</strong> {course_title}<br/>"
+            f"<strong>Schedule ID:</strong> {schedule.id}<br/>"
+            f"<strong>Date:</strong> {schedule_date}<br/>"
+            f"<strong>Time:</strong> {schedule_time}</p>"
+            f"<p><strong>Request Subject:</strong> {subject}</p>"
+            f"<p><strong>Comments:</strong><br/>{comments_html}</p>"
+        )
+
+        if _queue_user_notification(admin, "notify_on_schedule_change", email_subject, body):
+            queued_count += 1
+
+    return queued_count
+
+
 def notify_new_course_published(course_title: str) -> int:
     recipients = User.query.filter(User.role == "student").all()
     if not recipients:

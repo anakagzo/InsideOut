@@ -1,6 +1,12 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { schedulesApi } from "@/api/insideoutApi";
-import type { CreateSchedulePayload, RefreshEnrollmentZoomLinkResponse, Schedule } from "@/api/types";
+import type {
+  CreateSchedulePayload,
+  RefreshEnrollmentZoomLinkResponse,
+  Schedule,
+  ScheduleChangeRequestPayload,
+  ScheduleChangeRequestResponse,
+} from "@/api/types";
 import { createRequestState, setFailed, setPending, setSucceeded } from "@/store/slices/requestState";
 
 export const fetchSchedules = createAsyncThunk("schedules/fetchList", async () => schedulesApi.listMine());
@@ -17,6 +23,11 @@ export const refreshEnrollmentZoomLink = createAsyncThunk<RefreshEnrollmentZoomL
   async (enrollmentId: number) => schedulesApi.refreshEnrollmentZoomLink(enrollmentId),
 );
 
+export const requestScheduleChange = createAsyncThunk<
+  ScheduleChangeRequestResponse,
+  { scheduleId: number; payload: ScheduleChangeRequestPayload }
+>("schedules/requestChange", async ({ scheduleId, payload }) => schedulesApi.requestChange(scheduleId, payload));
+
 interface SchedulesState {
   list: Schedule[];
   byId: Record<number, Schedule>;
@@ -25,6 +36,7 @@ interface SchedulesState {
     createMany: ReturnType<typeof createRequestState>;
     detail: ReturnType<typeof createRequestState>;
     refreshZoomLink: ReturnType<typeof createRequestState>;
+    requestChange: ReturnType<typeof createRequestState>;
   };
 }
 
@@ -36,6 +48,7 @@ const initialState: SchedulesState = {
     createMany: createRequestState(),
     detail: createRequestState(),
     refreshZoomLink: createRequestState(),
+    requestChange: createRequestState(),
   },
 };
 
@@ -73,6 +86,11 @@ const schedulesSlice = createSlice({
       .addCase(refreshEnrollmentZoomLink.fulfilled, (state) => setSucceeded(state.requests.refreshZoomLink))
       .addCase(refreshEnrollmentZoomLink.rejected, (state, action) =>
         setFailed(state.requests.refreshZoomLink, action.error.message),
+      )
+      .addCase(requestScheduleChange.pending, (state) => setPending(state.requests.requestChange))
+      .addCase(requestScheduleChange.fulfilled, (state) => setSucceeded(state.requests.requestChange))
+      .addCase(requestScheduleChange.rejected, (state, action) =>
+        setFailed(state.requests.requestChange, action.error.message),
       );
   },
 });

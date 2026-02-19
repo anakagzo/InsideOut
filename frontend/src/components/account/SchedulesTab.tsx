@@ -10,7 +10,12 @@ import { format, isSameDay, parseISO } from "date-fns";
 import { toast } from "sonner";
 import type { Schedule } from "@/api/types";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { fetchEnrollmentGroupedSchedules, fetchSchedules, refreshEnrollmentZoomLink } from "@/store/thunks";
+import {
+  fetchEnrollmentGroupedSchedules,
+  fetchSchedules,
+  refreshEnrollmentZoomLink,
+  requestScheduleChange,
+} from "@/store/thunks";
 import { selectAccountScheduleEvents } from "@/store/selectors/accountSelectors";
 
 interface SchedulesTabProps {
@@ -24,9 +29,12 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
   const [changeRequestOpen, setChangeRequestOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [refreshingEnrollmentId, setRefreshingEnrollmentId] = useState<number | null>(null);
+  const [changeSubject, setChangeSubject] = useState("");
+  const [changeComments, setChangeComments] = useState("");
 
   const schedulesList = useAppSelector((state) => state.schedules.list);
   const schedulesStatus = useAppSelector((state) => state.schedules.requests.list.status);
+  const changeRequestStatus = useAppSelector((state) => state.schedules.requests.requestChange.status);
   const groupedStatus = useAppSelector((state) => state.enrollments.requests.groupedSchedules.status);
   const schedules = useAppSelector((state) => selectAccountScheduleEvents(state, isAdmin));
 
@@ -52,6 +60,8 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
 
   const handleRequestChange = (schedule: Schedule) => {
     setSelectedSchedule(schedule);
+    setChangeSubject("");
+    setChangeComments("");
     setChangeRequestOpen(true);
   };
 
@@ -70,6 +80,45 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
       toast.error(message);
     } finally {
       setRefreshingEnrollmentId(null);
+    }
+  };
+
+  const handleSendScheduleChangeRequest = async () => {
+    if (!selectedSchedule) {
+      return;
+    }
+
+    const subject = changeSubject.trim();
+    if (!subject) {
+      toast.error("Please add a subject for your request.");
+      return;
+    }
+
+    try {
+      const result = await dispatch(
+        requestScheduleChange({
+          scheduleId: selectedSchedule.id,
+          payload: {
+            subject,
+            comments: changeComments.trim(),
+          },
+        }),
+      ).unwrap();
+
+      toast.success(`Request sent. ${result.queued_count} admin notification(s) queued.`);
+      setChangeRequestOpen(false);
+      setSelectedSchedule(null);
+      setChangeSubject("");
+      setChangeComments("");
+
+      if (isAdmin) {
+        dispatch(fetchEnrollmentGroupedSchedules());
+      } else {
+        dispatch(fetchSchedules());
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to send schedule change request.";
+      toast.error(message);
     }
   };
 
@@ -202,13 +251,19 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
             )}
             <div>
               <Label>Subject</Label>
-              <Input placeholder="Reason for change request" />
+              <Input
+                placeholder="Reason for change request"
+                value={changeSubject}
+                onChange={(event) => setChangeSubject(event.target.value)}
+              />
             </div>
             <div>
               <Label>Comments</Label>
               <Textarea
                 placeholder="Provide details about your preferred date/time or any other information..."
                 rows={4}
+                value={changeComments}
+                onChange={(event) => setChangeComments(event.target.value)}
               />
             </div>
             <p className="text-xs text-muted-foreground">
@@ -221,12 +276,11 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                toast.info("Schedule-change requests are not yet connected to an API endpoint.");
-                setChangeRequestOpen(false);
-              }}
+              disabled={changeRequestStatus === "loading" || !selectedSchedule || !changeSubject.trim()}
+              onClick={handleSendScheduleChangeRequest}
             >
-              <Send className="w-4 h-4 mr-1" /> Send Request
+              <Send className="w-4 h-4 mr-1" />
+              {changeRequestStatus === "loading" ? "Sending..." : "Send Request"}
             </Button>
           </DialogFooter>
         </DialogContent>

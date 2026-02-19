@@ -371,3 +371,47 @@ def test_non_admin_cannot_refresh_enrollment_zoom_link(
     )
 
     assert response.status_code == 403
+
+
+def test_student_can_request_schedule_change_and_admin_is_emailed(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    create_schedule,
+    auth_headers,
+    monkeypatch,
+):
+    import utils.notifications as notifications_module
+
+    queued = []
+    monkeypatch.setattr(
+        notifications_module,
+        "queue_email",
+        lambda to_email, subject, body, reference_key=None: queued.append((to_email, subject, body, reference_key)),
+    )
+
+    admin = create_user(role="admin", email="schedule-change-admin@example.com")
+    student = create_user(email="schedule-change-student@example.com")
+    course = create_course(title="Schedule Change Course")
+    enrollment = create_enrollment(student.id, course.id, status="active")
+    schedule = create_schedule(enrollment.id)
+
+    response = client.post(
+        f"/schedules/{schedule.id}/request-change",
+        json={"subject": "Need to move session", "comments": "Please move to next week."},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["schedule_id"] == schedule.id
+    assert payload["queued_count"] == 1
+
+    detail_response = client.get(f"/schedules/{schedule.id}", headers=auth_headers(student))
+    assert detail_response.status_code == 200
+    detail_payload = detail_response.get_json()
+    assert detail_payload["status"] == "reschedule_requested"
+
+    recipients = [item[0] for item in queued]
+    assert admin.email in recipients

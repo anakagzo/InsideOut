@@ -26,6 +26,8 @@ import type {
   Review,
   SavedCoursesParams,
   Schedule,
+  ScheduleChangeRequestPayload,
+  ScheduleChangeRequestResponse,
   StripeCheckoutSessionPayload,
   StripeCheckoutSessionResponse,
   StripeFinalizePayload,
@@ -202,6 +204,14 @@ export const schedulesApi = {
    */
   async getById(scheduleId: number): Promise<Schedule> {
     const { data } = await apiClient.get<Schedule>(`/schedules/${scheduleId}`);
+    return data;
+  },
+
+  /**
+   * Request a schedule change for one schedule (student endpoint).
+   */
+  async requestChange(scheduleId: number, payload: ScheduleChangeRequestPayload): Promise<ScheduleChangeRequestResponse> {
+    const { data } = await apiClient.post<ScheduleChangeRequestResponse>(`/schedules/${scheduleId}/request-change`, payload);
     return data;
   },
 

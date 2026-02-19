@@ -7,10 +7,10 @@ from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from models import Schedule, User, Enrollment
-from schemas import ScheduleSchema
+from schemas import ScheduleSchema, ScheduleChangeRequestSchema, ScheduleChangeRequestResponseSchema
 from db import db
 from utils.decorators import admin_required
-from utils.notifications import notify_schedule_created
+from utils.notifications import notify_schedule_change_requested, notify_schedule_created
 from utils.zoom import create_zoom_meeting_link
 
 blp = Blueprint("Schedules", "schedules", url_prefix="/schedules")
@@ -169,6 +169,51 @@ class ScheduleDetail(MethodView):
             abort(404, message="Schedule not found or access denied.")
 
         return schedule
+
+
+@blp.route("/<int:schedule_id>/request-change")
+class ScheduleChangeRequest(MethodView):
+    """Student action to request schedule changes from admins."""
+
+    @jwt_required()
+    @blp.arguments(ScheduleChangeRequestSchema)
+    @blp.response(200, ScheduleChangeRequestResponseSchema)
+    def post(self, data, schedule_id):
+        user_id = get_jwt_identity()
+        student = db.session.get(User, user_id)
+        if not student:
+            abort(404, message="User not found.")
+
+        schedule = (
+            Schedule.query
+            .filter(Schedule.id == schedule_id)
+            .join(Enrollment)
+            .filter(Enrollment.student_id == user_id)
+            .first()
+        )
+        if not schedule:
+            abort(404, message="Schedule not found or access denied.")
+
+        schedule.status = "reschedule_requested"
+        db.session.commit()
+
+        queued_count = notify_schedule_change_requested(
+            student=student,
+            schedule=schedule,
+            subject=data["subject"],
+            comments=data.get("comments", ""),
+        )
+
+        logger.info(
+            "Schedule change requested",
+            extra={"user_id": user_id, "schedule_id": schedule_id, "queued_count": queued_count},
+        )
+
+        return {
+            "message": "Schedule change request sent to admins.",
+            "schedule_id": schedule.id,
+            "queued_count": queued_count,
+        }
 
 
 @blp.route("/enrollments/<int:enrollment_id>/refresh-zoom-link")

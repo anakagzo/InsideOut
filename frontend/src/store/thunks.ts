@@ -29,6 +29,7 @@ export {
   createSchedules,
   fetchScheduleDetail,
   refreshEnrollmentZoomLink,
+  requestScheduleChange,
 } from "@/store/slices/schedulesSlice";
 
 export { fetchCourseReviews, createCourseReview, replyToReview } from "@/store/slices/reviewsSlice";

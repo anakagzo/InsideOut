@@ -201,6 +201,17 @@ export interface RefreshEnrollmentZoomLinkResponse {
   updated_count: number;
 }
 
+export interface ScheduleChangeRequestPayload {
+  subject: string;
+  comments?: string;
+}
+
+export interface ScheduleChangeRequestResponse {
+  message: string;
+  schedule_id: number;
+  queued_count: number;
+}
+
 export interface Review {
   id: number;
   user_id: number;
