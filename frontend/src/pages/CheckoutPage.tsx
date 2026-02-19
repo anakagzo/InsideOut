@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { CreditCard, Building2, ShieldCheck, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCheckoutCourse } from "@/features/checkout/useCheckoutCourse";
+import { usePayments } from "@/features/payments/usePayments";
 
 /**
  * Formats backend decimal-like price values for display.
@@ -25,6 +26,7 @@ const formatPrice = (price: string | number | null | undefined): string => {
 
 const CheckoutPage = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const courseId = id ? Number(id) : NaN;
   const isCourseIdValid = Number.isInteger(courseId) && courseId > 0;
@@ -37,10 +39,46 @@ const CheckoutPage = () => {
   } = useCheckoutCourse(isCourseIdValid ? courseId : null);
 
   const [paymentMethod, setPaymentMethod] = useState<"stripe" | "bank">("stripe");
-  const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const didFinalizeRef = useRef(false);
+
+  const {
+    createCheckoutStatus,
+    createCheckoutError,
+    finalizeCheckoutStatus,
+    finalizeCheckoutError,
+    stripeFinalizeResult,
+    startStripeCheckout,
+    finalizeStripePayment,
+  } = usePayments();
 
   const coursePrice = formatPrice(course?.price);
+
+  useEffect(() => {
+    const status = searchParams.get("status");
+    const sessionId = searchParams.get("session_id");
+    if (status !== "success" || !sessionId || !isCourseIdValid || didFinalizeRef.current) {
+      return;
+    }
+
+    didFinalizeRef.current = true;
+    setCheckoutError(null);
+
+    finalizeStripePayment(sessionId)
+      .then(() => {
+        setShowSuccessModal(true);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Error) {
+          setCheckoutError(error.message);
+          return;
+        }
+        setCheckoutError("Unable to finalize payment right now.");
+      });
+  }, [finalizeStripePayment, isCourseIdValid, searchParams]);
+
+  const isProcessing = createCheckoutStatus === "loading" || finalizeCheckoutStatus === "loading";
 
   if (!isCourseIdValid) {
     return (
@@ -93,20 +131,43 @@ const CheckoutPage = () => {
     );
   }
 
-  const handlePayment = () => {
-    setIsProcessing(true);
-    // Simulate payment processing
-    setTimeout(() => {
-      setIsProcessing(false);
-      setShowSuccessModal(true);
-    }, 1500);
+  const handlePayment = async () => {
+    setCheckoutError(null);
+
+    if (paymentMethod === "bank") {
+      setCheckoutError("Bank transfer confirmation flow is not automated yet. Please use Stripe checkout.");
+      return;
+    }
+
+    try {
+      const checkoutSession = await startStripeCheckout(courseId);
+      window.location.assign(checkoutSession.checkout_url);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setCheckoutError(error.message);
+      } else {
+        setCheckoutError("Unable to start Stripe checkout right now.");
+      }
+    }
   };
 
   const handleContinueToBooking = () => {
-    // Generate a mock token for the booking link
-    const mockToken = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    navigate(`/onboarding/${id}/${mockToken}`);
+    const onboardingToken = stripeFinalizeResult?.onboarding_token;
+    if (!onboardingToken) {
+      setCheckoutError("Onboarding link is not available yet. Please retry payment confirmation.");
+      return;
+    }
+    navigate(`/onboarding/${id}/${onboardingToken}`);
   };
+
+  const handleCloseSuccessModal = (open: boolean) => {
+    setShowSuccessModal(open);
+    if (!open) {
+      navigate(`/checkout/${id}`, { replace: true });
+    }
+  };
+
+  const effectiveCheckoutError = checkoutError ?? finalizeCheckoutError ?? createCheckoutError;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -185,8 +246,12 @@ const CheckoutPage = () => {
               disabled={isProcessing}
             >
               <ShieldCheck className="w-4 h-4 mr-2" />
-              {isProcessing ? "Processing..." : `Pay £${coursePrice}`}
+              {isProcessing ? "Processing..." : `Pay with Stripe £${coursePrice}`}
             </Button>
+
+            {effectiveCheckoutError && (
+              <p className="text-sm text-destructive">{effectiveCheckoutError}</p>
+            )}
           </div>
 
           {/* Order summary */}
@@ -221,7 +286,7 @@ const CheckoutPage = () => {
       <Footer />
 
       {/* Success Modal */}
-      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+      <Dialog open={showSuccessModal} onOpenChange={handleCloseSuccessModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="text-center">
             <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">

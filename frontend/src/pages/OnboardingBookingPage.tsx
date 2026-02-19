@@ -19,11 +19,10 @@ import {
   createSchedules,
   fetchCourseDetail,
   fetchCourseSchedules,
-  fetchEnrollments,
   fetchPublicAvailability,
 } from "@/store/thunks";
+import { usePayments } from "@/features/payments/usePayments";
 
-const USED_ONBOARDING_TOKENS_KEY = "insideout_used_onboarding_tokens";
 const ONBOARDING_DURATION_MINUTES = 60;
 const SLOT_STEP_MINUTES = 30;
 
@@ -38,26 +37,7 @@ const hasOverlap = (
   endMinute: number,
   bookedRanges: Array<{ startMinute: number; endMinute: number }>,
 ) => bookedRanges.some((range) => startMinute < range.endMinute && endMinute > range.startMinute);
-
 const dayOfWeekToAvailabilityNumber = (date: Date) => (date.getDay() === 0 ? 7 : date.getDay());
-
-const readUsedOnboardingTokens = (): string[] => {
-  try {
-    const raw = localStorage.getItem(USED_ONBOARDING_TOKENS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const writeUsedOnboardingToken = (token: string) => {
-  const existing = readUsedOnboardingTokens();
-  if (existing.includes(token)) {
-    return;
-  }
-  localStorage.setItem(USED_ONBOARDING_TOKENS_KEY, JSON.stringify([...existing, token]));
-};
 
 const OnboardingBookingPage = () => {
   const { id, token } = useParams();
@@ -77,9 +57,6 @@ const OnboardingBookingPage = () => {
     isCourseIdValid ? state.courses.requests.detailById[courseId]?.error ?? null : null,
   );
 
-  const enrollmentList = useAppSelector((state) => state.enrollments.list?.data ?? []);
-  const enrollmentsStatus = useAppSelector((state) => state.enrollments.requests.list.status);
-
   const onboardingAvailability = useAppSelector((state) => state.availability.publicView);
   const onboardingAvailabilityStatus = useAppSelector((state) => state.availability.requests.fetchPublic.status);
   const onboardingAvailabilityError = useAppSelector((state) => state.availability.requests.fetchPublic.error);
@@ -88,6 +65,12 @@ const OnboardingBookingPage = () => {
     isCourseIdValid ? state.courses.schedulesByCourseId[courseId] ?? [] : [],
   );
   const createScheduleStatus = useAppSelector((state) => state.schedules.requests.createMany.status);
+  const {
+    tokenValidationStatus,
+    tokenValidationError,
+    tokenValidationResponse,
+    validateToken,
+  } = usePayments();
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -95,32 +78,32 @@ const OnboardingBookingPage = () => {
   const [isBooked, setIsBooked] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookedRange, setBookedRange] = useState<{ start: string; end: string } | null>(null);
-  const [isConsumedToken, setIsConsumedToken] = useState<boolean>(() => {
-    if (!token) {
-      return true;
-    }
-    return readUsedOnboardingTokens().includes(token);
-  });
 
   useEffect(() => {
     if (!isCourseIdValid) {
       return;
     }
     dispatch(fetchCourseDetail(courseId));
-    dispatch(fetchEnrollments({ page: 1, page_size: 100 }));
     dispatch(fetchPublicAvailability());
     dispatch(fetchCourseSchedules(courseId));
   }, [courseId, dispatch, isCourseIdValid]);
 
-  const eligibleEnrollment = useMemo(() => {
-    return [...enrollmentList]
-      .filter(
-        (item) =>
-          item.course_id === courseId &&
-          (item.status === "active" || item.status === "completed"),
-      )
-      .sort((left, right) => right.id - left.id)[0];
-  }, [courseId, enrollmentList]);
+  useEffect(() => {
+    if (!token || !isCourseIdValid) {
+      return;
+    }
+
+    validateToken(token, courseId);
+  }, [courseId, isCourseIdValid, token, validateToken]);
+
+  const effectiveTokenValidationStatus = !token || !isCourseIdValid ? "failed" : tokenValidationStatus;
+  const tokenValidationMessage =
+    !token || !isCourseIdValid
+      ? "Booking link is missing or invalid."
+      : tokenValidationResponse?.message ?? tokenValidationError ?? null;
+  const validatedEnrollmentId = tokenValidationResponse?.enrollment_id ?? null;
+  const isTokenValid = tokenValidationResponse?.valid ?? false;
+  const isTokenExpired = !token || !isCourseIdValid ? true : (tokenValidationResponse?.expired ?? true);
 
   const availabilityDays = onboardingAvailability?.availability ?? [];
   const unavailableDateSet = useMemo(
@@ -178,7 +161,12 @@ const OnboardingBookingPage = () => {
     return [...startMap.values()].sort((left, right) => left.start.localeCompare(right.start));
   }, [availabilityDays, onboardingAvailability, selectedDate, unavailableDateSet]);
 
-  const isExpired = !token || isConsumedToken || existingCourseSchedules.length > 0;
+  const isExpired =
+    !token ||
+    effectiveTokenValidationStatus === "failed" ||
+    isTokenExpired ||
+    !isTokenValid ||
+    existingCourseSchedules.length > 0;
 
   const disabledDays = (date: Date) => {
     const today = startOfDay(new Date());
@@ -249,7 +237,7 @@ const OnboardingBookingPage = () => {
   };
 
   const handleConfirmBooking = async () => {
-    if (!selectedDate || !selectedTime || !eligibleEnrollment) {
+    if (!selectedDate || !selectedTime || !validatedEnrollmentId) {
       setBookingError("Please choose a valid date and time.");
       return;
     }
@@ -264,18 +252,13 @@ const OnboardingBookingPage = () => {
       await dispatch(
         createSchedules([
           {
-            enrollment_id: eligibleEnrollment.id,
+            enrollment_id: validatedEnrollmentId,
             date: format(selectedDate, "yyyy-MM-dd"),
             start_time: normalizeTimeForApi(slot.start),
             end_time: normalizeTimeForApi(slot.end),
           },
         ]),
       ).unwrap();
-
-      if (token) {
-        writeUsedOnboardingToken(token);
-        setIsConsumedToken(true);
-      }
 
       setBookedRange({ start: slot.start, end: slot.end });
       setIsBooked(true);
@@ -344,6 +327,18 @@ const OnboardingBookingPage = () => {
     );
   }
 
+  if (effectiveTokenValidationStatus === "idle" || effectiveTokenValidationStatus === "loading") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <p className="text-muted-foreground">Validating onboarding link...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (isExpired) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -352,7 +347,7 @@ const OnboardingBookingPage = () => {
             <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-foreground mb-2">Link Expired</h2>
             <p className="text-muted-foreground mb-4">
-              This booking link has expired or has already been used.
+              {tokenValidationMessage ?? "This booking link has expired or has already been used."}
             </p>
             <Button onClick={() => navigate("/account")}>Go to Account</Button>
           </CardContent>
@@ -444,12 +439,12 @@ const OnboardingBookingPage = () => {
           )}
         </div>
 
-        {enrollmentsStatus === "succeeded" && !eligibleEnrollment && (
+        {!validatedEnrollmentId && (
           <Card className="mb-6 border-destructive/30">
             <CardContent className="pt-6 text-center">
               <AlertCircle className="w-10 h-10 text-destructive mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
-                You need an active or completed enrollment in this course before booking onboarding.
+                {tokenValidationMessage ?? "You need a valid enrollment before booking onboarding."}
               </p>
             </CardContent>
           </Card>
@@ -609,7 +604,7 @@ const OnboardingBookingPage = () => {
                 disabled={
                   !selectedDate ||
                   !selectedTime ||
-                  !eligibleEnrollment ||
+                  !validatedEnrollmentId ||
                   createScheduleStatus === "loading" ||
                   onboardingAvailabilityStatus !== "succeeded"
                 }

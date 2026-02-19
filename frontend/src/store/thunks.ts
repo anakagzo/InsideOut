@@ -46,3 +46,9 @@ export {
   fetchUsers,
   deleteUser,
 } from "@/store/slices/usersSlice";
+
+export {
+  createStripeCheckoutSession,
+  finalizeStripeSession,
+  validateOnboardingToken,
+} from "@/store/slices/paymentsSlice";

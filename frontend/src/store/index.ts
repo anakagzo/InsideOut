@@ -6,6 +6,7 @@ import reviewsReducer from "@/store/slices/reviewsSlice";
 import notificationSettingsReducer from "@/store/slices/notificationSettingsSlice";
 import availabilityReducer from "@/store/slices/availabilitySlice";
 import usersReducer from "@/store/slices/usersSlice";
+import paymentsReducer from "@/store/slices/paymentsSlice";
 
 /**
  * Root Redux store.
@@ -21,6 +22,7 @@ export const store = configureStore({
     notificationSettings: notificationSettingsReducer,
     availability: availabilityReducer,
     users: usersReducer,
+    payments: paymentsReducer,
   },
 });
 
