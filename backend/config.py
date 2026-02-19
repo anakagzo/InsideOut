@@ -54,6 +54,14 @@ class BaseConfig:
     MEDIA_S3_ACCESS_KEY = os.getenv("MEDIA_S3_ACCESS_KEY", "")
     MEDIA_S3_SECRET_KEY = os.getenv("MEDIA_S3_SECRET_KEY", "")
 
+    STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+    STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    STRIPE_CURRENCY = os.getenv("STRIPE_CURRENCY", "gbp")
+    FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+    ONBOARDING_TOKEN_SECRET = os.getenv("ONBOARDING_TOKEN_SECRET", "")
+    ONBOARDING_TOKEN_TTL_SECONDS = int(os.getenv("ONBOARDING_TOKEN_TTL_SECONDS", "172800"))
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True

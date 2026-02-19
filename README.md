@@ -118,6 +118,65 @@ Logging settings:
 - `LOG_FORMAT` — Python logging format string
 - `LOG_DATE_FORMAT` — date/time format in logs
 
+Payments / onboarding settings:
+
+- `STRIPE_SECRET_KEY` — Stripe secret key used by backend payment endpoints
+- `STRIPE_PUBLISHABLE_KEY` — Stripe publishable key returned with checkout session
+- `STRIPE_WEBHOOK_SECRET` — Stripe webhook signing secret for `/payments/stripe/webhook`
+- `STRIPE_CURRENCY` — checkout currency (default `gbp`)
+- `FRONTEND_BASE_URL` — frontend origin for Stripe success/cancel redirects
+- `ONBOARDING_TOKEN_SECRET` — signing secret for server-issued onboarding links
+- `ONBOARDING_TOKEN_TTL_SECONDS` — onboarding link validity window in seconds
+
+## Stripe setup (checkout + webhook)
+
+1. Create Stripe API keys in your Stripe dashboard.
+2. Set `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` in `backend/.env`.
+3. Run Stripe CLI webhook forwarding in a separate terminal:
+
+```bash
+stripe listen --forward-to http://127.0.0.1:5000/payments/stripe/webhook
+```
+
+4. Copy the CLI signing secret (`whsec_...`) into `STRIPE_WEBHOOK_SECRET`.
+5. Restart backend after changing env vars.
+
+Notes:
+
+- Checkout creates a Stripe session via `POST /payments/stripe/create-checkout-session`.
+- Enrollment + onboarding token finalization happens via:
+	- `POST /payments/stripe/finalize` on success redirect, and
+	- `POST /payments/stripe/webhook` for resilient server-side confirmation.
+
+### Troubleshooting Stripe
+
+- `Stripe is not configured` or `Stripe publishable key is not configured`
+	- Confirm `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` are set in `backend/.env`.
+	- Restart backend after changing env values.
+
+- `Invalid webhook signature`
+	- Make sure Stripe CLI is forwarding to `http://127.0.0.1:5000/payments/stripe/webhook`.
+	- Copy the latest CLI signing secret (`whsec_...`) into `STRIPE_WEBHOOK_SECRET`.
+	- Restart backend after updating the secret.
+
+- Checkout succeeds but enrollment is missing
+	- Verify frontend redirects back to `/checkout/:id?status=success&session_id=...`.
+	- Confirm webhook forwarding is active so server-side fallback finalization can run.
+
+- `You are already enrolled in this course`
+	- The backend prevents duplicate active/completed enrollments.
+	- Use account schedules/onboarding screen instead of re-checkout for that course.
+
+### Stripe Production Checklist
+
+- Use HTTPS for `FRONTEND_BASE_URL` and deploy backend behind HTTPS.
+- Set strong production secrets for `JWT_SECRET_KEY` and `ONBOARDING_TOKEN_SECRET`.
+- Use live Stripe keys (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`) only in production env.
+- Register webhook endpoint in Stripe dashboard: `/payments/stripe/webhook`.
+- Set `STRIPE_WEBHOOK_SECRET` from Stripe dashboard (or secure secret manager), then restart backend.
+- Keep `ONBOARDING_TOKEN_TTL_SECONDS` short enough for security while supporting user flow.
+- Monitor webhook delivery status in Stripe dashboard and backend logs.
+
 ## Testing
 
 ### Backend tests

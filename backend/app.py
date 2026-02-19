@@ -16,6 +16,7 @@ from resources.enrollment import blp as EnrollmentBlueprint
 from resources.schedule import blp as ScheduleBlueprint
 from resources.availability import blp as AvailabilityBlueprint 
 from resources.notification import blp as NotificationBlueprint
+from resources.payment import blp as PaymentBlueprint
 
 
 def _configure_logging(app):
@@ -135,5 +136,6 @@ def create_app(db_url=None):
     api.register_blueprint(ScheduleBlueprint)
     api.register_blueprint(AvailabilityBlueprint)
     api.register_blueprint(NotificationBlueprint)
+    api.register_blueprint(PaymentBlueprint)
 
     return app

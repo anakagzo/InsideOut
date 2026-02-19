@@ -25,6 +25,12 @@ import type {
   Review,
   SavedCoursesParams,
   Schedule,
+  StripeCheckoutSessionPayload,
+  StripeCheckoutSessionResponse,
+  StripeFinalizePayload,
+  StripeFinalizeResponse,
+  OnboardingTokenValidatePayload,
+  OnboardingTokenValidateResponse,
   ChangePasswordPayload,
   TutorReplyPayload,
   User,
@@ -351,6 +357,35 @@ export const usersApi = {
    */
   async deleteUser(userId: number): Promise<ApiMessageResponse> {
     const { data } = await apiClient.delete<ApiMessageResponse>(`/users/${userId}`);
+    return data;
+  },
+};
+
+/**
+ * Payment API functions.
+ */
+export const paymentsApi = {
+  /**
+   * Create Stripe checkout session for a course payment.
+   */
+  async createStripeCheckoutSession(payload: StripeCheckoutSessionPayload): Promise<StripeCheckoutSessionResponse> {
+    const { data } = await apiClient.post<StripeCheckoutSessionResponse>("/payments/stripe/create-checkout-session", payload);
+    return data;
+  },
+
+  /**
+   * Finalize successful Stripe session and receive onboarding token.
+   */
+  async finalizeStripeSession(payload: StripeFinalizePayload): Promise<StripeFinalizeResponse> {
+    const { data } = await apiClient.post<StripeFinalizeResponse>("/payments/stripe/finalize", payload);
+    return data;
+  },
+
+  /**
+   * Validate server-issued onboarding booking token.
+   */
+  async validateOnboardingToken(payload: OnboardingTokenValidatePayload): Promise<OnboardingTokenValidateResponse> {
+    const { data } = await apiClient.post<OnboardingTokenValidateResponse>("/payments/onboarding/validate-token", payload);
     return data;
   },
 };

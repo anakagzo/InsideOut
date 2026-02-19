@@ -19,6 +19,38 @@ export interface ApiMessageResponse {
   message: string;
 }
 
+export interface StripeCheckoutSessionPayload {
+  course_id: number;
+}
+
+export interface StripeCheckoutSessionResponse {
+  session_id: string;
+  checkout_url: string;
+  publishable_key: string;
+}
+
+export interface StripeFinalizePayload {
+  session_id: string;
+}
+
+export interface StripeFinalizeResponse {
+  message: string;
+  enrollment_id: number;
+  onboarding_token: string;
+}
+
+export interface OnboardingTokenValidatePayload {
+  token: string;
+  course_id: number;
+}
+
+export interface OnboardingTokenValidateResponse {
+  valid: boolean;
+  expired: boolean;
+  message: string;
+  enrollment_id: number | null;
+}
+
 export interface AuthTokens {
   access_token: string;
   refresh_token: string;
