@@ -69,6 +69,15 @@ class BaseConfig:
     ONBOARDING_TOKEN_SECRET = os.getenv("ONBOARDING_TOKEN_SECRET", "")
     ONBOARDING_TOKEN_TTL_SECONDS = int(os.getenv("ONBOARDING_TOKEN_TTL_SECONDS", "172800"))
 
+    # ===== ZOOM SETTINGS =====
+    ZOOM_CLIENT_ID = os.getenv("ZOOM_CLIENT_ID", "")
+    ZOOM_CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET", "")
+    ZOOM_ACCOUNT_ID = os.getenv("ZOOM_ACCOUNT_ID", "")
+    ZOOM_USER_ID = os.getenv("ZOOM_USER_ID", "me")
+    ZOOM_TIMEZONE = os.getenv("ZOOM_TIMEZONE", "UTC")
+    ZOOM_API_TIMEOUT_SECONDS = int(os.getenv("ZOOM_API_TIMEOUT_SECONDS", "10"))
+    ZOOM_MOCK_LINK_FALLBACK_ENABLED = _env_bool("ZOOM_MOCK_LINK_FALLBACK_ENABLED", True)
+
     # ===== EMAIL SETTINGS =====
     SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
     EMAIL_FROM = os.getenv("EMAIL_FROM")  # e.g. noreply@yourdomain.com

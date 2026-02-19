@@ -2,13 +2,16 @@
 
 import logging
 from datetime import datetime, timezone
+from typing import Any, cast
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from models import Schedule, User, Enrollment
 from schemas import ScheduleSchema
 from db import db
+from utils.decorators import admin_required
 from utils.notifications import notify_schedule_created
+from utils.zoom import create_zoom_meeting_link
 
 blp = Blueprint("Schedules", "schedules", url_prefix="/schedules")
 logger = logging.getLogger(__name__)
@@ -20,6 +23,38 @@ def _get_enrollment_or_404(enrollment_id):
     if not enrollment:
         abort(404, message="Enrollment not found.")
     return enrollment
+
+
+def _get_or_create_shared_zoom_link(enrollment: Enrollment) -> str:
+    existing_zoom_link = (
+        db.session.query(Schedule.zoom_link)
+        .filter(
+            Schedule.enrollment_id == enrollment.id,
+            Schedule.zoom_link.isnot(None),
+            Schedule.zoom_link != "",
+        )
+        .order_by(Schedule.id.asc())
+        .limit(1)
+        .scalar()
+    )
+    if existing_zoom_link:
+        return str(existing_zoom_link)
+
+    topic = f"{enrollment.course.title} - Enrollment {enrollment.id}"
+    try:
+        return create_zoom_meeting_link(topic=topic)
+    except RuntimeError as exc:
+        logger.exception("Zoom meeting creation failed", extra={"enrollment_id": enrollment.id})
+        abort(502, message=str(exc))
+
+
+def _create_shared_zoom_link(enrollment: Enrollment) -> str:
+    topic = f"{enrollment.course.title} - Enrollment {enrollment.id}"
+    try:
+        return create_zoom_meeting_link(topic=topic)
+    except RuntimeError as exc:
+        logger.exception("Zoom meeting creation failed", extra={"enrollment_id": enrollment.id})
+        abort(502, message=str(exc))
 
 @blp.route("/")
 class ScheduleList(MethodView):
@@ -71,7 +106,8 @@ class ScheduleList(MethodView):
         if enrollment.student_id != user_id:
             abort(403, message="Cannot create schedule for another user's enrollment.")
 
-        # Todo: generate zoom link here based on the schedule details and save it to the database
+        shared_zoom_link = _get_or_create_shared_zoom_link(enrollment)
+
         schedules = []
         for item in data:
             overlapping = (
@@ -87,13 +123,15 @@ class ScheduleList(MethodView):
                 abort(409, message="Selected time overlaps an existing scheduled class.")
 
             schedule = Schedule(**item)
+            schedule.zoom_link = shared_zoom_link
             db.session.add(schedule)
             schedules.append(schedule)
         
         # Update enrollment end_date to latest schedule
         max_date = max(s.date for s in schedules)
-        if enrollment.end_date is None or max_date > enrollment.end_date:
-            enrollment.end_date = max_date
+        enrollment_end_date = enrollment.end_date.date() if enrollment.end_date else None
+        if enrollment_end_date is None or max_date > enrollment_end_date:
+            enrollment.end_date = datetime.combine(max_date, datetime.min.time())
         
         # Update enrollment status based on dates
         enrollment.status = "active" if datetime.now(timezone.utc).date() <= max_date else "completed"
@@ -131,3 +169,33 @@ class ScheduleDetail(MethodView):
             abort(404, message="Schedule not found or access denied.")
 
         return schedule
+
+
+@blp.route("/enrollments/<int:enrollment_id>/refresh-zoom-link")
+class EnrollmentZoomLinkRefresh(MethodView):
+    """Admin operations for enrollment-level shared Zoom links."""
+
+    @jwt_required()
+    @admin_required
+    def post(self, enrollment_id):
+        enrollment = _get_enrollment_or_404(enrollment_id)
+        new_zoom_link = _create_shared_zoom_link(enrollment)
+
+        updated_count = 0
+        enrollment_schedules = cast(list[Any], enrollment.schedules)
+        for schedule in enrollment_schedules:
+            schedule.zoom_link = new_zoom_link
+            updated_count += 1
+
+        db.session.commit()
+        logger.info(
+            "Enrollment Zoom link refreshed",
+            extra={"enrollment_id": enrollment_id, "updated_count": updated_count},
+        )
+
+        return {
+            "message": "Enrollment Zoom link refreshed.",
+            "enrollment_id": enrollment_id,
+            "zoom_link": new_zoom_link,
+            "updated_count": updated_count,
+        }, 200

@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { schedulesApi } from "@/api/insideoutApi";
-import type { CreateSchedulePayload, Schedule } from "@/api/types";
+import type { CreateSchedulePayload, RefreshEnrollmentZoomLinkResponse, Schedule } from "@/api/types";
 import { createRequestState, setFailed, setPending, setSucceeded } from "@/store/slices/requestState";
 
 export const fetchSchedules = createAsyncThunk("schedules/fetchList", async () => schedulesApi.listMine());
@@ -12,6 +12,11 @@ export const createSchedules = createAsyncThunk(
 
 export const fetchScheduleDetail = createAsyncThunk("schedules/fetchDetail", async (id: number) => schedulesApi.getById(id));
 
+export const refreshEnrollmentZoomLink = createAsyncThunk<RefreshEnrollmentZoomLinkResponse, number>(
+  "schedules/refreshEnrollmentZoomLink",
+  async (enrollmentId: number) => schedulesApi.refreshEnrollmentZoomLink(enrollmentId),
+);
+
 interface SchedulesState {
   list: Schedule[];
   byId: Record<number, Schedule>;
@@ -19,6 +24,7 @@ interface SchedulesState {
     list: ReturnType<typeof createRequestState>;
     createMany: ReturnType<typeof createRequestState>;
     detail: ReturnType<typeof createRequestState>;
+    refreshZoomLink: ReturnType<typeof createRequestState>;
   };
 }
 
@@ -29,6 +35,7 @@ const initialState: SchedulesState = {
     list: createRequestState(),
     createMany: createRequestState(),
     detail: createRequestState(),
+    refreshZoomLink: createRequestState(),
   },
 };
 
@@ -61,7 +68,12 @@ const schedulesSlice = createSlice({
         state.byId[action.payload.id] = action.payload;
         setSucceeded(state.requests.detail);
       })
-      .addCase(fetchScheduleDetail.rejected, (state, action) => setFailed(state.requests.detail, action.error.message));
+      .addCase(fetchScheduleDetail.rejected, (state, action) => setFailed(state.requests.detail, action.error.message))
+      .addCase(refreshEnrollmentZoomLink.pending, (state) => setPending(state.requests.refreshZoomLink))
+      .addCase(refreshEnrollmentZoomLink.fulfilled, (state) => setSucceeded(state.requests.refreshZoomLink))
+      .addCase(refreshEnrollmentZoomLink.rejected, (state, action) =>
+        setFailed(state.requests.refreshZoomLink, action.error.message),
+      );
   },
 });
 

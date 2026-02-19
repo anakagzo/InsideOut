@@ -22,6 +22,7 @@ import type {
   NotificationSettings,
   NotificationSettingsPayload,
   RegisterPayload,
+  RefreshEnrollmentZoomLinkResponse,
   Review,
   SavedCoursesParams,
   Schedule,
@@ -201,6 +202,16 @@ export const schedulesApi = {
    */
   async getById(scheduleId: number): Promise<Schedule> {
     const { data } = await apiClient.get<Schedule>(`/schedules/${scheduleId}`);
+    return data;
+  },
+
+  /**
+   * Refresh shared Zoom link for an enrollment (admin only).
+   */
+  async refreshEnrollmentZoomLink(enrollmentId: number): Promise<RefreshEnrollmentZoomLinkResponse> {
+    const { data } = await apiClient.post<RefreshEnrollmentZoomLinkResponse>(
+      `/schedules/enrollments/${enrollmentId}/refresh-zoom-link`,
+    );
     return data;
   },
 };

@@ -24,7 +24,12 @@ export {
   fetchEnrollmentGroupedSchedules,
 } from "@/store/slices/enrollmentsSlice";
 
-export { fetchSchedules, createSchedules, fetchScheduleDetail } from "@/store/slices/schedulesSlice";
+export {
+  fetchSchedules,
+  createSchedules,
+  fetchScheduleDetail,
+  refreshEnrollmentZoomLink,
+} from "@/store/slices/schedulesSlice";
 
 export { fetchCourseReviews, createCourseReview, replyToReview } from "@/store/slices/reviewsSlice";
 

@@ -194,6 +194,13 @@ export interface GroupedSchedulesItem {
   schedules: Schedule[];
 }
 
+export interface RefreshEnrollmentZoomLinkResponse {
+  message: string;
+  enrollment_id: number;
+  zoom_link: string;
+  updated_count: number;
+}
+
 export interface Review {
   id: number;
   user_id: number;

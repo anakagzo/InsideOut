@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Calendar, Video, Clock, User, BookOpen, Send } from "lucide-react";
+import { Calendar, Video, Clock, User, BookOpen, Send, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -10,7 +10,7 @@ import { format, isSameDay, parseISO } from "date-fns";
 import { toast } from "sonner";
 import type { Schedule } from "@/api/types";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { fetchEnrollmentGroupedSchedules, fetchSchedules } from "@/store/thunks";
+import { fetchEnrollmentGroupedSchedules, fetchSchedules, refreshEnrollmentZoomLink } from "@/store/thunks";
 import { selectAccountScheduleEvents } from "@/store/selectors/accountSelectors";
 
 interface SchedulesTabProps {
@@ -23,6 +23,7 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [changeRequestOpen, setChangeRequestOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  const [refreshingEnrollmentId, setRefreshingEnrollmentId] = useState<number | null>(null);
 
   const schedulesList = useAppSelector((state) => state.schedules.list);
   const schedulesStatus = useAppSelector((state) => state.schedules.requests.list.status);
@@ -52,6 +53,24 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
   const handleRequestChange = (schedule: Schedule) => {
     setSelectedSchedule(schedule);
     setChangeRequestOpen(true);
+  };
+
+  const handleRefreshZoomLink = async (enrollmentId: number) => {
+    try {
+      setRefreshingEnrollmentId(enrollmentId);
+      const result = await dispatch(refreshEnrollmentZoomLink(enrollmentId)).unwrap();
+      toast.success(`Meeting link refreshed for enrollment #${result.enrollment_id}.`);
+      if (isAdmin) {
+        dispatch(fetchEnrollmentGroupedSchedules());
+      } else {
+        dispatch(fetchSchedules());
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to refresh meeting link.";
+      toast.error(message);
+    } finally {
+      setRefreshingEnrollmentId(null);
+    }
   };
 
   return (
@@ -136,14 +155,23 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
                     </div>
                   </div>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full mt-2"
-                    onClick={() => handleRequestChange(event)}
-                  >
-                    <Send className="w-4 h-4 mr-1" /> Request Change
-                  </Button>
+                  <div className="grid grid-cols-1 gap-2 mt-2">
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={refreshingEnrollmentId === event.enrollment_id}
+                        onClick={() => handleRefreshZoomLink(event.enrollment_id)}
+                      >
+                        <RefreshCcw className="w-4 h-4 mr-1" />
+                        {refreshingEnrollmentId === event.enrollment_id ? "Refreshing Link..." : "Refresh Link"}
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => handleRequestChange(event)}>
+                      <Send className="w-4 h-4 mr-1" /> Request Change
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
