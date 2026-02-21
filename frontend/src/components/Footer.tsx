@@ -25,11 +25,11 @@ export function Footer() {
             <div className="space-y-3 text-sm opacity-70">
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 shrink-0" />
-                <span>hello@educonnect.com</span>
+                <span>insideoutprogramme@co.uk</span>
               </div>
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 shrink-0" />
-                <span>123 Learning Lane, London, UK</span>
+                <span>London, UK</span>
               </div>
             </div>
           </div>
@@ -52,7 +52,7 @@ export function Footer() {
         </div>
 
         <div className="border-t border-background/10 mt-8 pt-6 text-center text-sm opacity-70">
-          © {new Date().getFullYear()} InsideOutProgramme. All rights reserved.
+          © {new Date().getFullYear()} Inside Out Programme. All rights reserved.
           <p className="pt-4"> built by <a href="https://igleware.com" target="_blank" className="underline hover:text-primary text-white text-base">IgleWare</a></p>
         </div>
       </div>

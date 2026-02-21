@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight, Play, Award } from "lucide-react";
@@ -14,6 +14,7 @@ import tutorPortrait from "@/assets/tutor-portrait.jpg";
 const Index = () => {
   const dispatch = useAppDispatch();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [showProgramme, setShowProgramme] = useState(false);
   const coursesList = useAppSelector((state) => state.courses.list);
   const listStatus = useAppSelector((state) => state.courses.requests.list.status);
 
@@ -45,7 +46,11 @@ const Index = () => {
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0">
-          <img src={heroImage} alt="Students learning online" className="w-full h-full object-cover" />
+          <img
+            src={heroImage}
+            alt="Students learning online"
+            className="w-full h-full  object-cover "
+          />
           <div className="absolute inset-0 bg-foreground/60" />
         </div>
         <div className="relative container mx-auto px-4 py-24 md:py-36">
@@ -56,19 +61,21 @@ const Index = () => {
             className="max-w-2xl"
           >
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary-foreground leading-tight">
-              Learn with Expert
-              <span className="block text-gradient">Live Tutoring</span>
+              Behaviour Is Communication
+              <span className="block text-gradient my-6">Let’s Listen Differently.</span>
             </h1>
-            <p className="mt-4 text-lg text-primary-foreground/80 max-w-lg">
-              Enroll in professional courses and book personalised face-to-face sessions with expert tutors via Zoom.
+            <p className="mt-6 text-lg text-primary-foreground/80 max-w-lg">
+              The Inside Out Programme helps families and professionals understand the emotional world of neurodivergent children, fostering connection, shared responsibility, and meaningful, lasting support.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
+              {/*  
               <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 text-base px-8">
                 Explore Courses
               </Button>
               <Button size="lg" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 text-base px-8">
                 Learn More
               </Button>
+              */}
             </div>
           </motion.div>
         </div>
@@ -136,12 +143,9 @@ const Index = () => {
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
             >
-              <div className="aspect-video bg-muted rounded-xl overflow-hidden relative group cursor-pointer">
+              <div className="aspect-video bg-muted rounded-xl overflow-hidden relative group ">
                 <img src={tutorPortrait} alt="Meet your tutor" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-foreground/30 flex items-center justify-center group-hover:bg-foreground/40 transition-colors">
-                  <div className="w-16 h-16 rounded-full bg-primary/90 flex items-center justify-center">
-                    <Play className="w-6 h-6 text-primary-foreground ml-1" />
-                  </div>
                 </div>
               </div>
             </motion.div>
@@ -152,19 +156,19 @@ const Index = () => {
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
             >
-              <h2 className="text-3xl font-bold text-foreground">Meet Your Tutor</h2>
-              <p className="mt-4 text-muted-foreground leading-relaxed">
-                With over 10 years of experience in education and technology, our lead tutor is passionate about making learning accessible and engaging for everyone.
-              </p>
-              <p className="mt-3 text-muted-foreground leading-relaxed">
-                EduConnect was founded to bridge the gap between online convenience and the personalised attention of face-to-face tutoring. Every student receives tailored guidance through live Zoom sessions.
-              </p>
+            <h2 className="text-3xl font-bold text-foreground">Meet Your Tutor</h2>
+            <p className="mt-4 text-muted-foreground leading-relaxed">
+              I am Freda McWen, a certified professional with over 10 years of experience in education and technology. Having a neurodivergent child personally inspired my passion to support children and families through understanding, connection, and tailored guidance.
+            </p>
+            <p className="mt-3 text-muted-foreground leading-relaxed">
+              Inside Out Programme was founded to combine the convenience of online learning with the personalised care of one-to-one tutoring. Every student benefits from live Zoom sessions designed to meet their unique learning needs, ensuring support that is both effective and empathetic.
+            </p>
 
               {/* Certifications */}
               <div className="mt-8">
                 <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Certifications & Achievements</h3>
                 <div className="flex flex-wrap gap-3">
-                  {["Certified Educator", "Google Partner", "AWS Certified", "ISO 27001"].map((cert) => (
+                  {["Certified Educator", "CPD Certified"].map((cert) => (
                     <div key={cert} className="flex items-center gap-2 px-3 py-2 bg-accent rounded-lg">
                       <Award className="w-4 h-4 text-primary" />
                       <span className="text-sm font-medium text-accent-foreground">{cert}</span>
@@ -172,10 +176,54 @@ const Index = () => {
                   ))}
                 </div>
               </div>
+
+              <button
+                onClick={() => setShowProgramme(!showProgramme)}
+                className="mt-8 text-primary font-semibold hover:underline text-sm inline-flex items-center gap-1"
+              >
+                Read More <ArrowRight className="w-4 h-4" />
+              </button>
             </motion.div>
           </div>
         </div>
       </section>
+
+      {/* About the Programme */}
+      {showProgramme && (
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full bg-secondary py-20"
+        >
+          <div className="w-full px-2">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-3xl font-bold text-foreground mb-6">About the Programme</h2>
+              <div className="space-y-4 text-muted-foreground leading-relaxed">
+                <p>
+                  The Inside Out Programme works from the inside out — prioritising emotional safety, regulation, and relationships before focusing on behaviour.        
+                  Our approach integrates trauma-informed and neuro-affirming practice, systemic thinking, and practical strategies grounded in real-life care settings. By supporting the entire system around the child — families, schools, and professionals — we create aligned, sustainable change rather than isolated interventions.
+                </p>
+                <p>
+                  Family Group Conferencing (FGC) is a cornerstone of the programme, offering a structured and professionally facilitated space where families and professionals collaborate to design clear, strengths-based, child-centred plans that endure.
+                </p>
+                <p>
+                  Inside Out offers professionally delivered one-to-one courses, hosted live via Zoom and available for enrolment directly through our homepage. These scheduled, paid courses provide personalised guidance, practical regulation tools, and deep insight into communication, connection, and collaborative care — equipping you with clarity and confidence from the outset.
+                </p>
+                <p>
+                  We provide a respectful, reflective, and non-judgemental space where families are empowered, professionals work in genuine partnership, and children’s voices remain central. If you are ready to strengthen understanding, reduce conflict, and build shared, confident care, we invite you to enrol and begin your journey with Inside Out.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowProgramme(false)}
+                className="mt-8 text-primary font-semibold hover:underline text-sm"
+              >
+                Show Less
+              </button>
+            </div>
+          </div>
+        </motion.section>
+      )}
 
       <Footer />
     </div>
