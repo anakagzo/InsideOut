@@ -1,10 +1,10 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { usersApi } from "@/api/insideoutApi";
 import type {
-  ApiMessageResponse,
   AuthTokens,
   ChangePasswordPayload,
   LoginPayload,
+  RefreshTokensResponse,
   RegisterPayload,
   User,
   UserListResponse,
@@ -15,9 +15,16 @@ import { createRequestState, setFailed, setPending, setSucceeded } from "@/store
 const ACCESS_TOKEN_KEY = "insideout_access_token";
 const REFRESH_TOKEN_KEY = "insideout_refresh_token";
 
-const persistTokens = (tokens: AuthTokens) => {
+const persistAuthTokens = (tokens: AuthTokens) => {
   localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
   localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
+};
+
+const persistRefreshedTokens = (tokens: RefreshTokensResponse) => {
+  localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
+  if (tokens.refresh_token) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
+  }
 };
 
 const clearTokens = () => {
@@ -31,7 +38,7 @@ export const registerUser = createAsyncThunk("users/register", async (payload: R
 
 export const logoutUser = createAsyncThunk("users/logout", async () => usersApi.logout());
 
-export const refreshTokens = createAsyncThunk("users/refresh", async () => usersApi.refresh());
+export const refreshTokens = createAsyncThunk<RefreshTokensResponse>("users/refresh", async () => usersApi.refresh());
 
 export const fetchCurrentUser = createAsyncThunk("users/fetchMe", async () => usersApi.getMe());
 
@@ -106,7 +113,7 @@ const usersSlice = createSlice({
     builder
       .addCase(loginUser.pending, (state) => setPending(state.requests.login))
       .addCase(loginUser.fulfilled, (state, action) => {
-        persistTokens(action.payload);
+        persistAuthTokens(action.payload);
         state.auth.accessToken = action.payload.access_token;
         state.auth.refreshToken = action.payload.refresh_token;
         setSucceeded(state.requests.login);
@@ -114,7 +121,7 @@ const usersSlice = createSlice({
       .addCase(loginUser.rejected, (state, action) => setFailed(state.requests.login, action.error.message))
       .addCase(registerUser.pending, (state) => setPending(state.requests.register))
       .addCase(registerUser.fulfilled, (state, action) => {
-        persistTokens(action.payload);
+        persistAuthTokens(action.payload);
         state.auth.accessToken = action.payload.access_token;
         state.auth.refreshToken = action.payload.refresh_token;
         setSucceeded(state.requests.register);
@@ -132,9 +139,11 @@ const usersSlice = createSlice({
       .addCase(logoutUser.rejected, (state, action) => setFailed(state.requests.logout, action.error.message))
       .addCase(refreshTokens.pending, (state) => setPending(state.requests.refresh))
       .addCase(refreshTokens.fulfilled, (state, action) => {
-        persistTokens(action.payload);
+        persistRefreshedTokens(action.payload);
         state.auth.accessToken = action.payload.access_token;
-        state.auth.refreshToken = action.payload.refresh_token;
+        if (action.payload.refresh_token) {
+          state.auth.refreshToken = action.payload.refresh_token;
+        }
         setSucceeded(state.requests.refresh);
       })
       .addCase(refreshTokens.rejected, (state, action) => setFailed(state.requests.refresh, action.error.message))

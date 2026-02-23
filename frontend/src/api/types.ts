@@ -56,6 +56,11 @@ export interface AuthTokens {
   refresh_token: string;
 }
 
+export interface RefreshTokensResponse {
+  access_token: string;
+  refresh_token?: string;
+}
+
 export interface LoginPayload {
   email: string;
   password: string;

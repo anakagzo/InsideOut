@@ -22,6 +22,7 @@ import type {
   NotificationSettings,
   NotificationSettingsPayload,
   RegisterPayload,
+  RefreshTokensResponse,
   RefreshEnrollmentZoomLinkResponse,
   Review,
   SavedCoursesParams,
@@ -334,10 +335,10 @@ export const usersApi = {
   },
 
   /**
-   * Refresh access token pair using refresh token.
+   * Refresh access token and rotate refresh token only when required.
    */
-  async refresh(): Promise<AuthTokens> {
-    const { data } = await apiClient.post<AuthTokens>("/auth/refresh");
+  async refresh(): Promise<RefreshTokensResponse> {
+    const { data } = await apiClient.post<RefreshTokensResponse>("/auth/refresh");
     return data;
   },
 

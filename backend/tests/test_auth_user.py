@@ -88,11 +88,37 @@ def test_change_password_success(client, create_user, auth_headers):
     assert login_response.status_code == 200
 
 
-def test_refresh_rotates_tokens(client, create_user):
+def test_refresh_returns_access_only_until_rotation_window(client, create_user):
     create_user(email="refresh@example.com", password="Password123!")
     login_response = client.post(
         "/auth/login",
         json={"email": "refresh@example.com", "password": "Password123!"},
+    )
+    refresh_token = login_response.get_json()["refresh_token"]
+
+    refresh_response = client.post(
+        "/auth/refresh",
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
+    assert refresh_response.status_code == 200
+    refreshed_data = refresh_response.get_json()
+    assert "access_token" in refreshed_data
+    assert "refresh_token" not in refreshed_data
+
+    second_refresh_response = client.post(
+        "/auth/refresh",
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
+    assert second_refresh_response.status_code == 200
+
+
+def test_refresh_rotates_token_inside_rotation_window(client, app, create_user):
+    app.config["JWT_REFRESH_ROTATE_LEEWAY_SECONDS"] = 999_999_999
+    create_user(email="rotate@example.com", password="Password123!")
+
+    login_response = client.post(
+        "/auth/login",
+        json={"email": "rotate@example.com", "password": "Password123!"},
     )
     refresh_token = login_response.get_json()["refresh_token"]
 

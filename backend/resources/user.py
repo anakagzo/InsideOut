@@ -1,6 +1,7 @@
 """User authentication and profile management endpoints."""
 
 import logging
+from datetime import UTC, datetime
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from sqlalchemy.exc import SQLAlchemyError
@@ -12,7 +13,7 @@ from flask_jwt_extended import (
     jwt_required,
 )
 from passlib.hash import pbkdf2_sha256
-from flask import request
+from flask import request, current_app
 from sqlalchemy import or_
 
 from db import db
@@ -48,7 +49,7 @@ class Login(MethodView):
             abort(401, message="Invalid credentials")
 
         access = create_access_token(identity=user.id, additional_claims={"role": user.role}, fresh=True )
-        refresh = create_refresh_token(identity=user.id)
+        refresh = create_refresh_token(identity=user.id, additional_claims={"role": user.role})
         logger.info("Login successful", extra={"user_id": user.id})
         return {"access_token": access, "refresh_token": refresh}
 
@@ -84,8 +85,8 @@ class UserRegister(MethodView):
         db.session.commit()
         logger.info("Registration successful", extra={"user_id": user.id})
 
-        access = create_access_token(identity=user.id)
-        refresh = create_refresh_token(identity=user.id)
+        access = create_access_token(identity=user.id, additional_claims={"role": user.role})
+        refresh = create_refresh_token(identity=user.id, additional_claims={"role": user.role})
 
         return {
             "access_token": access,
@@ -102,8 +103,8 @@ class UserLogout(MethodView):
     def post(self):
         """Revoke current JWT by adding its JTI to the blocklist."""
         logger.info("Logout requested")
-        jti = get_jwt()["jti"]
-        BLOCKLIST.add(jti)
+        claims = get_jwt()
+        BLOCKLIST.revoke_payload(claims)
         return {"message": "Successfully logged out"}, 200
 
     
@@ -246,13 +247,16 @@ class TokenRefresh(MethodView):
 
     @jwt_required(refresh=True)
     def post(self):
-        """Issue new access and refresh tokens, revoking the previous refresh token."""
+        """Issue a new access token and rotate refresh token only near refresh expiry."""
         identity = get_jwt_identity()
         logger.info("Token refresh requested", extra={"user_id": identity})
         claims = get_jwt()
 
-        jti = get_jwt()["jti"]
-        BLOCKLIST.add(jti)
+        refresh_expiry_ts = claims.get("exp", 0)
+        now_ts = int(datetime.now(UTC).timestamp())
+        remaining_seconds = max(refresh_expiry_ts - now_ts, 0)
+        rotate_leeway_seconds = int(current_app.config.get("JWT_REFRESH_ROTATE_LEEWAY_SECONDS", 86400))
+        should_rotate_refresh = remaining_seconds <= rotate_leeway_seconds
         
         new_access = create_access_token(
             identity=identity,
@@ -260,11 +264,19 @@ class TokenRefresh(MethodView):
             fresh=False
         )
 
-        new_refresh = create_refresh_token(identity=identity)
+        response_payload = {
+            "access_token": new_access,
+        }
+
+        if should_rotate_refresh:
+            BLOCKLIST.revoke_payload(claims)
+            new_refresh = create_refresh_token(
+                identity=identity,
+                additional_claims={"role": claims.get("role")},
+            )
+            response_payload["refresh_token"] = new_refresh
+
         logger.info("Token refresh completed", extra={"user_id": identity})
 
-        return {
-            "access_token": new_access,
-            "refresh_token": new_refresh
-        }, 200
+        return response_payload, 200
 

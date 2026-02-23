@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosInstance } from "axios";
+import axios, { AxiosError, AxiosHeaders, AxiosInstance } from "axios";
 
 /**
  * Frontend API base URL.
@@ -15,6 +15,18 @@ interface ApiErrorResponse {
   error?: string;
   description?: string;
 }
+
+interface RefreshResponse {
+  access_token: string;
+  refresh_token?: string;
+}
+
+interface RetriableRequestConfig {
+  _retry?: boolean;
+}
+
+const ACCESS_TOKEN_KEY = "insideout_access_token";
+const REFRESH_TOKEN_KEY = "insideout_refresh_token";
 
 /**
  * Application-level API error with optional HTTP status.
@@ -33,7 +45,23 @@ export class ApiError extends Error {
  * Returns a persisted access token for authenticated requests.
  */
 function getAccessToken(): string | null {
-  return localStorage.getItem("insideout_access_token") ?? localStorage.getItem("access_token");
+  return localStorage.getItem(ACCESS_TOKEN_KEY) ?? localStorage.getItem("access_token");
+}
+
+function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+function setRefreshedTokens(tokens: RefreshResponse): void {
+  localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
+  if (tokens.refresh_token) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
+  }
+}
+
+function clearStoredTokens(): void {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 /**
@@ -52,6 +80,46 @@ export const apiClient: AxiosInstance = axios.create({
   },
 });
 
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessTokenIfPossible(): Promise<boolean> {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    clearStoredTokens();
+    return false;
+  }
+
+  refreshPromise = axios
+    .post<RefreshResponse>(
+      `${API_BASE_URL}/auth/refresh`,
+      null,
+      {
+        headers: {
+          Authorization: `Bearer ${refreshToken}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 15_000,
+      },
+    )
+    .then(({ data }) => {
+      setRefreshedTokens(data);
+      return true;
+    })
+    .catch(() => {
+      clearStoredTokens();
+      return false;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+}
+
 apiClient.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) {
@@ -62,9 +130,30 @@ apiClient.interceptors.request.use((config) => {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<ApiErrorResponse>) => {
+  async (error: AxiosError<ApiErrorResponse>) => {
     const status = error.response?.status;
     const payload = error.response?.data;
+    const originalRequest = error.config as (typeof error.config & RetriableRequestConfig);
+
+    const shouldAttemptRefresh =
+      status === 401 &&
+      Boolean(originalRequest) &&
+      !originalRequest?._retry &&
+      originalRequest?.url !== "/auth/refresh" &&
+      (payload?.error === "token_expired" || payload?.message === "The token has expired.");
+
+    if (shouldAttemptRefresh) {
+      originalRequest._retry = true;
+      const refreshed = await refreshAccessTokenIfPossible();
+      const newAccessToken = getAccessToken();
+
+      if (refreshed && newAccessToken) {
+        const headers = AxiosHeaders.from(originalRequest.headers);
+        headers.set("Authorization", `Bearer ${newAccessToken}`);
+        originalRequest.headers = headers;
+        return apiClient(originalRequest);
+      }
+    }
 
     const message =
       payload?.message ??
