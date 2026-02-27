@@ -59,10 +59,25 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
     meetingReminderLeadMinutes: 60,
   });
 
-  const [availabilitySlots, setAvailabilitySlots] = useState([
-    { id: "1", day: "1", startTime: "09:00", endTime: "17:00", months: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"] },
-    { id: "2", day: "3", startTime: "09:00", endTime: "17:00", months: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"] },
-    { id: "3", day: "5", startTime: "10:00", endTime: "15:00", months: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"] },
+  const [monthStart, setMonthStart] = useState(String(new Date().getMonth() + 1));
+  const [monthEnd, setMonthEnd] = useState(String(new Date().getMonth() + 1));
+
+  const [availabilityDays, setAvailabilityDays] = useState<
+    Array<{
+      id: string;
+      day: string;
+      timeSlots: Array<{
+        id: string;
+        startTime: string;
+        endTime: string;
+      }>;
+    }>
+  >([
+    {
+      id: "day-1",
+      day: "1",
+      timeSlots: [{ id: "slot-1", startTime: "09:00", endTime: "17:00" }],
+    },
   ]);
 
   // Date overrides
@@ -73,6 +88,9 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
     new: "",
     confirm: "",
   });
+  const [currentPasswordEditable, setCurrentPasswordEditable] = useState(false);
+  const [newPasswordEditable, setNewPasswordEditable] = useState(false);
+  const [confirmPasswordEditable, setConfirmPasswordEditable] = useState(false);
 
   useEffect(() => {
     dispatch(fetchNotificationSettings());
@@ -100,22 +118,23 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
       return;
     }
 
-    const monthStart = availabilityConfig.month_start ?? 1;
-    const monthEnd = availabilityConfig.month_end ?? monthStart;
-    const months = Array.from({ length: monthEnd - monthStart + 1 }, (_, index) => String(monthStart + index));
+    const incomingMonthStart = availabilityConfig.month_start ?? 1;
+    const incomingMonthEnd = availabilityConfig.month_end ?? incomingMonthStart;
+    setMonthStart(String(incomingMonthStart));
+    setMonthEnd(String(incomingMonthEnd));
 
-    const slots = availabilityConfig.availability.flatMap((dayItem) =>
-      (dayItem.time_slots || []).map((slot, index) => ({
-        id: `${dayItem.day_of_week}-${index}-${slot.start_time}`,
-        day: String(dayItem.day_of_week),
+    const days = availabilityConfig.availability.map((dayItem, index) => ({
+      id: `day-${dayItem.day_of_week}-${index}`,
+      day: String(dayItem.day_of_week),
+      timeSlots: (dayItem.time_slots || []).map((slot, slotIndex) => ({
+        id: `slot-${dayItem.day_of_week}-${slotIndex}-${slot.start_time}`,
         startTime: slot.start_time.slice(0, 5),
         endTime: slot.end_time.slice(0, 5),
-        months,
       })),
-    );
+    }));
 
-    if (slots.length > 0) {
-      setAvailabilitySlots(slots);
+    if (days.length > 0) {
+      setAvailabilityDays(days);
     }
 
     const overrides = (availabilityConfig.unavailable_dates || []).map((item, index) => ({
@@ -144,15 +163,93 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
     }
   };
 
-  const addAvailabilitySlot = () => {
-    setAvailabilitySlots([
-      ...availabilitySlots,
-      { id: Date.now().toString(), day: "1", startTime: "09:00", endTime: "17:00", months: [] },
+  const addAvailabilityDay = () => {
+    const usedDays = new Set(availabilityDays.map((item) => item.day));
+    const nextDay = DAYS_OF_WEEK.find((item) => !usedDays.has(item.value));
+
+    if (!nextDay) {
+      toast.error("All days of week are already added.");
+      return;
+    }
+
+    setAvailabilityDays([
+      ...availabilityDays,
+      {
+        id: `day-${Date.now()}`,
+        day: nextDay.value,
+        timeSlots: [{ id: `slot-${Date.now()}`, startTime: "09:00", endTime: "17:00" }],
+      },
     ]);
   };
 
-  const removeAvailabilitySlot = (id: string) => {
-    setAvailabilitySlots(availabilitySlots.filter((s) => s.id !== id));
+  const removeAvailabilityDay = (dayId: string) => {
+    setAvailabilityDays(availabilityDays.filter((item) => item.id !== dayId));
+  };
+
+  const updateAvailabilityDay = (dayId: string, nextDay: string) => {
+    const duplicate = availabilityDays.some((item) => item.id !== dayId && item.day === nextDay);
+    if (duplicate) {
+      toast.error("Each day of week can only be added once.");
+      return;
+    }
+
+    setAvailabilityDays(
+      availabilityDays.map((item) => (item.id === dayId ? { ...item, day: nextDay } : item)),
+    );
+  };
+
+  const addTimeSlotToDay = (dayId: string) => {
+    setAvailabilityDays(
+      availabilityDays.map((item) =>
+        item.id === dayId
+          ? {
+              ...item,
+              timeSlots: [
+                ...item.timeSlots,
+                { id: `slot-${Date.now()}`, startTime: "09:00", endTime: "17:00" },
+              ],
+            }
+          : item,
+      ),
+    );
+  };
+
+  const removeTimeSlotFromDay = (dayId: string, slotId: string) => {
+    setAvailabilityDays(
+      availabilityDays.map((item) =>
+        item.id === dayId
+          ? {
+              ...item,
+              timeSlots: item.timeSlots.filter((slot) => slot.id !== slotId),
+            }
+          : item,
+      ),
+    );
+  };
+
+  const updateTimeSlot = (
+    dayId: string,
+    slotId: string,
+    field: "startTime" | "endTime",
+    value: string,
+  ) => {
+    setAvailabilityDays(
+      availabilityDays.map((item) =>
+        item.id === dayId
+          ? {
+              ...item,
+              timeSlots: item.timeSlots.map((slot) =>
+                slot.id === slotId
+                  ? {
+                      ...slot,
+                      [field]: value,
+                    }
+                  : slot,
+              ),
+            }
+          : item,
+      ),
+    );
   };
 
   const addDateOverride = () => {
@@ -168,30 +265,72 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
 
   const handleAvailabilitySave = async () => {
     try {
-      const allMonths = availabilitySlots.flatMap((slot) => slot.months.map((month) => Number(month)));
-      const currentMonth = new Date().getMonth() + 1;
-      const monthStart = allMonths.length > 0 ? Math.min(...allMonths) : currentMonth;
-      const monthEnd = allMonths.length > 0 ? Math.max(...allMonths) : monthStart;
+      const parsedMonthStart = Number(monthStart);
+      const parsedMonthEnd = Number(monthEnd);
 
-      const groupedByDay = new Map<number, Array<{ start_time: string; end_time: string }>>();
+      if (!Number.isInteger(parsedMonthStart) || parsedMonthStart < 1 || parsedMonthStart > 12) {
+        toast.error("Month start must be between January and December.");
+        return;
+      }
 
-      availabilitySlots.forEach((slot) => {
-        const day = Number(slot.day);
-        const current = groupedByDay.get(day) || [];
-        current.push({
-          start_time: `${slot.startTime}:00`,
-          end_time: `${slot.endTime}:00`,
-        });
-        groupedByDay.set(day, current);
-      });
+      if (!Number.isInteger(parsedMonthEnd) || parsedMonthEnd < 1 || parsedMonthEnd > 12) {
+        toast.error("Month end must be between January and December.");
+        return;
+      }
+
+      if (parsedMonthEnd < parsedMonthStart) {
+        toast.error("Month end must be the same as or after month start.");
+        return;
+      }
+
+      if (availabilityDays.length === 0) {
+        toast.error("Add at least one day of availability.");
+        return;
+      }
+
+      const dayValues = availabilityDays.map((item) => item.day);
+      if (new Set(dayValues).size !== dayValues.length) {
+        toast.error("Each day of week can only be added once.");
+        return;
+      }
+
+      for (const dayItem of availabilityDays) {
+        if (dayItem.timeSlots.length === 0) {
+          toast.error("Each day must include at least one time slot.");
+          return;
+        }
+
+        const sortedSlots = [...dayItem.timeSlots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+        for (let index = 0; index < sortedSlots.length; index += 1) {
+          const slot = sortedSlots[index];
+
+          if (!slot.startTime || !slot.endTime || slot.startTime >= slot.endTime) {
+            toast.error("Each time slot must have a start time earlier than end time.");
+            return;
+          }
+
+          if (index > 0 && sortedSlots[index - 1].endTime > slot.startTime) {
+            toast.error("Overlapping time slots are not allowed within the same day.");
+            return;
+          }
+        }
+      }
 
       const payload = {
-        month_start: monthStart,
-        month_end: monthEnd,
-        availability: Array.from(groupedByDay.entries()).map(([day_of_week, time_slots]) => ({
-          day_of_week,
-          time_slots,
-        })),
+        month_start: parsedMonthStart,
+        month_end: parsedMonthEnd,
+        availability: availabilityDays
+          .map((dayItem) => ({
+            day_of_week: Number(dayItem.day),
+            time_slots: dayItem.timeSlots
+              .map((slot) => ({
+                start_time: `${slot.startTime}:00`,
+                end_time: `${slot.endTime}:00`,
+              }))
+              .sort((a, b) => a.start_time.localeCompare(b.start_time)),
+          }))
+          .sort((a, b) => a.day_of_week - b.day_of_week),
         unavailable_dates: dateOverrides.filter((item) => !item.available && Boolean(item.date)).map((item) => item.date),
       };
 
@@ -220,6 +359,9 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
       ).unwrap();
       toast.success("Password changed successfully!");
       setPasswords({ current: "", new: "", confirm: "" });
+      setCurrentPasswordEditable(false);
+      setNewPasswordEditable(false);
+      setConfirmPasswordEditable(false);
     } catch {
       toast.error("Unable to change password.");
     }
@@ -339,20 +481,47 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
             Set your available days, times, and months for scheduling sessions.
           </p>
 
+          <div className="p-3 bg-muted rounded-lg grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-card-foreground">Month Start</Label>
+              <Select value={monthStart} onValueChange={setMonthStart}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select month start" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((month) => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-card-foreground">Month End</Label>
+              <Select value={monthEnd} onValueChange={setMonthEnd}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select month end" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((month) => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {/* Availability Slots */}
           <div className="space-y-3 overflow-x-auto">
-            {availabilitySlots.map((slot) => (
-              <div key={slot.id} className="p-3 bg-muted rounded-lg space-y-2 min-w-fit">
+            {availabilityDays.map((dayItem) => (
+              <div key={dayItem.id} className="p-3 bg-muted rounded-lg space-y-3 min-w-fit">
                 <div className="flex flex-wrap items-center gap-2">
                   <Select
-                    value={slot.day}
-                    onValueChange={(value) =>
-                      setAvailabilitySlots(
-                        availabilitySlots.map((s) =>
-                          s.id === slot.id ? { ...s, day: value } : s
-                        )
-                      )
-                    }
+                    value={dayItem.day}
+                    onValueChange={(value) => updateAvailabilityDay(dayItem.id, value)}
                   >
                     <SelectTrigger className="w-28 sm:w-32">
                       <SelectValue placeholder="Day" />
@@ -366,77 +535,56 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
                     </SelectContent>
                   </Select>
 
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    <Input
-                      type="time"
-                      value={slot.startTime}
-                      onChange={(e) =>
-                        setAvailabilitySlots(
-                          availabilitySlots.map((s) =>
-                            s.id === slot.id ? { ...s, startTime: e.target.value } : s
-                          )
-                        )
-                      }
-                      className="w-20 sm:w-24"
-                    />
-                    <span className="text-muted-foreground text-sm">to</span>
-                    <Input
-                      type="time"
-                      value={slot.endTime}
-                      onChange={(e) =>
-                        setAvailabilitySlots(
-                          availabilitySlots.map((s) =>
-                            s.id === slot.id ? { ...s, endTime: e.target.value } : s
-                          )
-                        )
-                      }
-                      className="w-20 sm:w-24"
-                    />
-                  </div>
-
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-destructive hover:text-destructive flex-shrink-0"
-                    onClick={() => removeAvailabilitySlot(slot.id)}
+                    onClick={() => removeAvailabilityDay(dayItem.id)}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
 
-                <div className="flex flex-wrap gap-1">
-                  {MONTHS.map((month) => (
-                    <button
-                      key={month.value}
-                      onClick={() =>
-                        setAvailabilitySlots(
-                          availabilitySlots.map((s) =>
-                            s.id === slot.id
-                              ? {
-                                  ...s,
-                                  months: s.months.includes(month.value)
-                                    ? s.months.filter((m) => m !== month.value)
-                                    : [...s.months, month.value],
-                                }
-                              : s
-                          )
-                        )
-                      }
-                      className={`text-xs px-2 py-0.5 rounded ${
-                        slot.months.includes(month.value)
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary text-secondary-foreground"
-                      }`}
-                    >
-                      {month.label.slice(0, 3)}
-                    </button>
+                <div className="space-y-2">
+                  {dayItem.timeSlots.map((slot) => (
+                    <div key={slot.id} className="flex flex-wrap items-center gap-2">
+                      <Input
+                        type="time"
+                        value={slot.startTime}
+                        onChange={(event) =>
+                          updateTimeSlot(dayItem.id, slot.id, "startTime", event.target.value)
+                        }
+                        className="w-24"
+                      />
+                      <span className="text-muted-foreground text-sm">to</span>
+                      <Input
+                        type="time"
+                        value={slot.endTime}
+                        onChange={(event) =>
+                          updateTimeSlot(dayItem.id, slot.id, "endTime", event.target.value)
+                        }
+                        className="w-24"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => removeTimeSlotFromDay(dayItem.id, slot.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   ))}
+
+                  <Button variant="outline" size="sm" onClick={() => addTimeSlotToDay(dayItem.id)}>
+                    <Plus className="w-4 h-4 mr-1" /> Add Time Slot
+                  </Button>
                 </div>
               </div>
             ))}
 
-            <Button variant="outline" size="sm" className="w-full" onClick={addAvailabilitySlot}>
-              <Plus className="w-4 h-4 mr-1" /> Add Time Slot
+            <Button variant="outline" size="sm" className="w-full" onClick={addAvailabilityDay}>
+              <Plus className="w-4 h-4 mr-1" /> Add Day
             </Button>
           </div>
 
@@ -512,6 +660,11 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
             <Label>Current Password</Label>
             <Input
               type="password"
+              name="current-password-manual-entry"
+              autoComplete="off"
+              readOnly={!currentPasswordEditable}
+              onFocus={() => setCurrentPasswordEditable(true)}
+              data-lpignore="true"
               value={passwords.current}
               onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
               placeholder="Enter current password"
@@ -521,6 +674,11 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
             <Label>New Password</Label>
             <Input
               type="password"
+              name="new-password-manual-entry"
+              autoComplete="off"
+              readOnly={!newPasswordEditable}
+              onFocus={() => setNewPasswordEditable(true)}
+              data-lpignore="true"
               value={passwords.new}
               onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
               placeholder="Enter new password"
@@ -530,6 +688,11 @@ export const SettingsPanel = ({ isAdmin }: SettingsPanelProps) => {
             <Label>Confirm New Password</Label>
             <Input
               type="password"
+              name="confirm-password-manual-entry"
+              autoComplete="off"
+              readOnly={!confirmPasswordEditable}
+              onFocus={() => setConfirmPasswordEditable(true)}
+              data-lpignore="true"
               value={passwords.confirm}
               onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
               placeholder="Confirm new password"

@@ -21,6 +21,24 @@ interface AvailabilityState {
   };
 }
 
+const normalizeAvailabilityConfig = (config: AvailabilityConfig): AvailabilityConfig => {
+  const uniqueDays = new Map<number, AvailabilityConfig["availability"][number]>();
+
+  config.availability.forEach((dayItem) => {
+    if (!uniqueDays.has(dayItem.day_of_week)) {
+      uniqueDays.set(dayItem.day_of_week, {
+        ...dayItem,
+        time_slots: [...dayItem.time_slots].sort((a, b) => a.start_time.localeCompare(b.start_time)),
+      });
+    }
+  });
+
+  return {
+    ...config,
+    availability: Array.from(uniqueDays.values()).sort((a, b) => a.day_of_week - b.day_of_week),
+  };
+};
+
 const initialState: AvailabilityState = {
   current: null,
   publicView: null,
@@ -39,13 +57,22 @@ const availabilitySlice = createSlice({
     builder
       .addCase(fetchAvailability.pending, (state) => setPending(state.requests.fetch))
       .addCase(fetchAvailability.fulfilled, (state, action) => {
-        state.current = action.payload;
+        state.current = normalizeAvailabilityConfig(action.payload);
         setSucceeded(state.requests.fetch);
       })
       .addCase(fetchAvailability.rejected, (state, action) => setFailed(state.requests.fetch, action.error.message))
       .addCase(fetchPublicAvailability.pending, (state) => setPending(state.requests.fetchPublic))
       .addCase(fetchPublicAvailability.fulfilled, (state, action) => {
-        state.publicView = action.payload;
+        state.publicView = {
+          ...action.payload,
+          availability: normalizeAvailabilityConfig({
+            user_id: 0,
+            month_start: action.payload.month_start,
+            month_end: action.payload.month_end,
+            availability: action.payload.availability,
+            unavailable_dates: [],
+          }).availability,
+        };
         setSucceeded(state.requests.fetchPublic);
       })
       .addCase(fetchPublicAvailability.rejected, (state, action) =>
@@ -53,7 +80,7 @@ const availabilitySlice = createSlice({
       )
       .addCase(upsertAvailability.pending, (state) => setPending(state.requests.upsert))
       .addCase(upsertAvailability.fulfilled, (state, action) => {
-        state.current = action.payload;
+        state.current = normalizeAvailabilityConfig(action.payload);
         setSucceeded(state.requests.upsert);
       })
       .addCase(upsertAvailability.rejected, (state, action) => setFailed(state.requests.upsert, action.error.message));
