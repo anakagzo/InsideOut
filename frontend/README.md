@@ -29,3 +29,9 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Environment configuration
+
+- Development API URL is set in [frontend/.env.development](frontend/.env.development).
+- Production API URL is set in [frontend/.env.production](frontend/.env.production).
+- The frontend reads `VITE_API_BASE_URL` from these files.
+

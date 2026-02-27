@@ -3,13 +3,25 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { GraduationCap, Menu, X, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthModal } from "@/components/AuthModal";
+import { useAppSelector } from "@/store/hooks";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const isAuthenticated = useAppSelector((state) => Boolean(state.users.auth.accessToken));
   const isHome = location.pathname === "/";
+  const accountLabel = isAuthenticated ? "My Account" : "Sign In";
+
+  const handleAccountClick = () => {
+    if (isAuthenticated) {
+      navigate("/account");
+      return;
+    }
+
+    setAuthOpen(true);
+  };
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
@@ -46,8 +58,8 @@ export function Header() {
               All Courses
             </Link>
             */}
-            <Button size="sm" onClick={() => setAuthOpen(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <User className="w-4 h-4 mr-1" /> Account
+            <Button size="sm" onClick={handleAccountClick} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <User className="w-4 h-4 mr-1" /> {accountLabel}
             </Button>
           </nav>
 
@@ -66,8 +78,15 @@ export function Header() {
             <button onClick={() => scrollToSection("about")} className="block w-full text-left text-sm font-medium text-muted-foreground hover:text-primary py-2">
               About
             </button>
-            <Button size="sm" onClick={() => { setAuthOpen(true); setMobileMenuOpen(false); }} className="w-full bg-primary text-primary-foreground">
-              <User className="w-4 h-4 mr-1" /> Account
+            <Button
+              size="sm"
+              onClick={() => {
+                handleAccountClick();
+                setMobileMenuOpen(false);
+              }}
+              className="w-full bg-primary text-primary-foreground"
+            >
+              <User className="w-4 h-4 mr-1" /> {accountLabel}
             </Button>
           </div>
         )}

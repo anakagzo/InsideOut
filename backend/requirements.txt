@@ -6,6 +6,7 @@ marshmallow
 python-dotenv
 gunicorn
 Flask-Migrate
+Flask-Cors
 pytest
 pytest-cov
 stripe

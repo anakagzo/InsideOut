@@ -3,9 +3,14 @@ import axios, { AxiosError, AxiosHeaders, AxiosInstance } from "axios";
 /**
  * Frontend API base URL.
  *
- * Override with VITE_API_BASE_URL in .env files for environment-specific routing.
+ * Development defaults to localhost:5000.
+ *
+ * Override with VITE_API_BASE_URL in .env files for environment-specific routing,
+ * especially in production deployments.
  */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:5000";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? "http://localhost:5000" : window.location.origin);
 
 /**
  * Structured error payload surfaced by the backend.

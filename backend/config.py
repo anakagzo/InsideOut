@@ -70,6 +70,14 @@ class BaseConfig:
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
     STRIPE_CURRENCY = os.getenv("STRIPE_CURRENCY", "gbp")
     FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+    CORS_ORIGINS = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:8080",
+        ).split(",")
+        if origin.strip()
+    ]
     ONBOARDING_TOKEN_SECRET = os.getenv("ONBOARDING_TOKEN_SECRET", "")
     ONBOARDING_TOKEN_TTL_SECONDS = int(os.getenv("ONBOARDING_TOKEN_TTL_SECONDS", "172800"))
 

@@ -5,6 +5,7 @@ from flask import Flask, jsonify, send_from_directory
 from flask_smorest import Api
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
+from flask_cors import CORS
 from sqlalchemy.exc import SQLAlchemyError
 
 from db import db
@@ -61,6 +62,13 @@ def create_app(db_url=None):
     db.init_app(app)
     migrate = Migrate(app, db)
     api = Api(app)
+
+    CORS(
+        app,
+        resources={r"/*": {"origins": app.config.get("CORS_ORIGINS", [])}},
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
 
     init_scheduler(app)
 
