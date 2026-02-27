@@ -1,3 +1,8 @@
+from passlib.hash import pbkdf2_sha256
+
+from models import User
+
+
 def test_register_login_and_get_profile(client):
     register_payload = {
         "email": "student@example.com",
@@ -170,3 +175,96 @@ def test_non_admin_cannot_list_users(client, create_user, auth_headers):
     student = create_user(role="student")
     response = client.get("/users", headers=auth_headers(student))
     assert response.status_code == 403
+
+
+def test_seed_admin_creates_admin_user(app):
+    runner = app.test_cli_runner()
+
+    result = runner.invoke(
+        args=[
+            "seed-admin",
+            "--email",
+            "seed-admin@example.com",
+            "--password",
+            "StrongPassword123!",
+            "--first-name",
+            "Seed",
+            "--last-name",
+            "Admin",
+        ]
+    )
+
+    assert result.exit_code == 0
+    assert "Admin user created successfully." in result.output
+
+    with app.app_context():
+        admin_user = User.query.filter_by(email="seed-admin@example.com").first()
+        assert admin_user is not None
+        assert admin_user.role == "admin"
+        assert admin_user.first_name == "Seed"
+        assert admin_user.last_name == "Admin"
+        assert pbkdf2_sha256.verify("StrongPassword123!", admin_user.password)
+
+
+def test_seed_admin_updates_existing_user_without_password_rotation(app, create_user):
+    create_user(
+        email="existing-admin@example.com",
+        password="OldPassword123!",
+        role="student",
+        first_name="Existing",
+        last_name="User",
+    )
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        args=[
+            "seed-admin",
+            "--email",
+            "existing-admin@example.com",
+            "--first-name",
+            "Updated",
+            "--last-name",
+            "Admin",
+        ]
+    )
+
+    assert result.exit_code == 0
+    assert "Admin user updated successfully." in result.output
+
+    with app.app_context():
+        admin_user = User.query.filter_by(email="existing-admin@example.com").first()
+        assert admin_user is not None
+        assert admin_user.role == "admin"
+        assert admin_user.first_name == "Updated"
+        assert admin_user.last_name == "Admin"
+        assert pbkdf2_sha256.verify("OldPassword123!", admin_user.password)
+
+
+def test_seed_admin_rotates_password_when_requested(app, create_user):
+    create_user(
+        email="rotate-admin@example.com",
+        password="OldPassword123!",
+        role="admin",
+        first_name="Rotate",
+        last_name="Admin",
+    )
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        args=[
+            "seed-admin",
+            "--email",
+            "rotate-admin@example.com",
+            "--password",
+            "NewPassword123!",
+            "--rotate-password",
+        ]
+    )
+
+    assert result.exit_code == 0
+    assert "Admin user updated successfully." in result.output
+
+    with app.app_context():
+        admin_user = User.query.filter_by(email="rotate-admin@example.com").first()
+        assert admin_user is not None
+        assert pbkdf2_sha256.verify("NewPassword123!", admin_user.password)

@@ -5,7 +5,6 @@ import sys
 
 import pytest
 from flask_jwt_extended import create_access_token, create_refresh_token
-from passlib.hash import pbkdf2_sha256
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -23,6 +22,7 @@ from app import create_app
 from blocklist import BLOCKLIST
 from db import db
 from models import Course, Enrollment, Schedule, User
+from utils.security import hash_password
 
 
 @pytest.fixture()
@@ -66,7 +66,7 @@ def create_user(app):
         user = User()
         user.email = overrides.pop("email", f"user{index}@example.com")
         password = overrides.pop("password", "Password123!")
-        user.password = pbkdf2_sha256.hash(password)
+        user.password = hash_password(password)
         user.first_name = first_name
         user.last_name = last_name
         user.initials = overrides.pop("initials", f"{first_name[0]}{last_name[0]}{index}")

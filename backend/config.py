@@ -37,6 +37,9 @@ class BaseConfig:
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     JWT_REFRESH_ROTATE_LEEWAY_SECONDS = int(os.getenv("JWT_REFRESH_ROTATE_LEEWAY_SECONDS", "86400"))
 
+    PASSWORD_HASH_ROUNDS = int(os.getenv("PASSWORD_HASH_ROUNDS", "390000"))
+    PASSWORD_HASH_SALT_SIZE = int(os.getenv("PASSWORD_HASH_SALT_SIZE", "16"))
+
     MEDIA_STORAGE_DRIVER = os.getenv("MEDIA_STORAGE_DRIVER", "local")
     MEDIA_LOCAL_UPLOAD_DIR = os.getenv("MEDIA_LOCAL_UPLOAD_DIR", "uploads")
     MEDIA_BASE_URL = os.getenv("MEDIA_BASE_URL", "/media")

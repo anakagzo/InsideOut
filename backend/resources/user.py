@@ -12,7 +12,6 @@ from flask_jwt_extended import (
     get_jwt,
     jwt_required,
 )
-from passlib.hash import pbkdf2_sha256
 from flask import request, current_app
 from sqlalchemy import or_
 
@@ -22,6 +21,7 @@ from schemas import UserSchema, UserRegisterSchema, UserUpdateSchema, UserLoginS
 from blocklist import BLOCKLIST
 from utils.decorators import admin_required
 from utils.initials import generate_unique_initials
+from utils.security import hash_password, verify_password
 
 blp = Blueprint("Users", __name__, description="Operations on users")
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class Login(MethodView):
         """Validate credentials and return access/refresh tokens."""
         logger.info("Login requested", extra={"email": data["email"].lower().strip()})
         user = UserModel.query.filter_by(email=data["email"].lower().strip()).first()
-        if not user or not pbkdf2_sha256.verify(data["password"], user.password):
+        if not user or not verify_password(data["password"], user.password):
             abort(401, message="Invalid credentials")
 
         access = create_access_token(identity=user.id, additional_claims={"role": user.role}, fresh=True )
@@ -69,7 +69,7 @@ class UserRegister(MethodView):
 
         user = UserModel()
         user.email = email
-        user.password = pbkdf2_sha256.hash(user_data["password"])
+        user.password = hash_password(user_data["password"])
         user.first_name = user_data.get("first_name")
         user.last_name = user_data.get("last_name")
         user.initials = generate_unique_initials(
@@ -231,10 +231,10 @@ class UserChangePassword(MethodView):
         user_id = int(get_jwt_identity())
         logger.info("Password change requested", extra={"user_id": user_id})
         user = _get_user_or_404(user_id)
-        if not pbkdf2_sha256.verify(user_data["old_password"], user.password):
+        if not verify_password(user_data["old_password"], user.password):
             abort(401, message="Invalid credentials.")
 
-        user.password = pbkdf2_sha256.hash(user_data["new_password"])
+        user.password = hash_password(user_data["new_password"])
         db.session.add(user)
         db.session.commit()
         logger.info("Password changed", extra={"user_id": user_id})

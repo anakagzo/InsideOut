@@ -68,6 +68,21 @@ Run database migrations (if needed):
 flask db upgrade
 ```
 
+Seed initial admin user (backend-only):
+
+```bash
+# PowerShell example
+$env:SEED_ADMIN_EMAIL="admin@insideout.local"
+$env:SEED_ADMIN_PASSWORD="ChangeThisStrongPassword!"
+flask seed-admin
+```
+
+Optional password rotation for an existing admin:
+
+```bash
+flask seed-admin --email admin@insideout.local --password "NewStrongPassword!" --rotate-password
+```
+
 Start backend server:
 
 ```bash
@@ -97,6 +112,8 @@ Core settings from `.env.example`:
 - `APP_ENV` — `development` or `production`
 - `DATABASE_URL` — SQLAlchemy DB URL (defaults to SQLite)
 - `JWT_SECRET_KEY` — secret used to sign JWTs
+- `PASSWORD_HASH_ROUNDS` — PBKDF2 iteration count for newly hashed passwords
+- `PASSWORD_HASH_SALT_SIZE` — PBKDF2 salt size for newly hashed passwords
 - `MEDIA_STORAGE_DRIVER` — `local` or cloud-compatible value
 - `MEDIA_LOCAL_UPLOAD_DIR` — local upload folder
 - `MEDIA_BASE_URL` — URL prefix for local media
@@ -127,6 +144,30 @@ Payments / onboarding settings:
 - `FRONTEND_BASE_URL` — frontend origin for Stripe success/cancel redirects
 - `ONBOARDING_TOKEN_SECRET` — signing secret for server-issued onboarding links
 - `ONBOARDING_TOKEN_TTL_SECONDS` — onboarding link validity window in seconds
+
+Admin seeding settings (backend-only CLI):
+
+- `SEED_ADMIN_EMAIL`
+- `SEED_ADMIN_PASSWORD`
+- `SEED_ADMIN_FIRST_NAME`
+- `SEED_ADMIN_LAST_NAME`
+- `SEED_ADMIN_PHONE_NUMBER`
+- `SEED_ADMIN_OCCUPATION`
+
+### Admin seeding
+
+- Use `flask seed-admin` from backend terminal only; do not expose admin creation in frontend.
+- Prefer one-time shell environment variables over committing values to `.env`.
+- Rotate the seeded admin password immediately after first login (or use `--rotate-password`).
+
+Safe PowerShell example (session-only variables):
+
+```powershell
+$env:SEED_ADMIN_EMAIL = "admin@insideout.local"
+$env:SEED_ADMIN_PASSWORD = "UseALongUniquePassphrase!"
+flask seed-admin
+Remove-Item Env:SEED_ADMIN_PASSWORD
+```
 
 ## Stripe setup (checkout + webhook)
 
