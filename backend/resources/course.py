@@ -315,6 +315,29 @@ class SaveCourse(MethodView):
         logger.info("Course saved", extra={"course_id": course_id, "user_id": user_id})
 
         return {"message": "Course saved successfully."}, 201
+
+    @jwt_required()
+    @student_required
+    def delete(self, course_id):
+        """Remove a saved course for the current user if present."""
+        user_id = get_jwt_identity()
+        logger.info("Unsave course requested", extra={"course_id": course_id, "user_id": user_id})
+
+        _get_course_or_404(course_id)
+
+        saved = SavedCourse.query.filter_by(
+            user_id=user_id,
+            course_id=course_id,
+        ).first()
+
+        if not saved:
+            return {"message": "Course was not saved."}, 200
+
+        db.session.delete(saved)
+        db.session.commit()
+        logger.info("Course unsaved", extra={"course_id": course_id, "user_id": user_id})
+
+        return {"message": "Course removed from saved list."}, 200
     
 @blp.route("/saved")
 class SavedCoursesList(MethodView):

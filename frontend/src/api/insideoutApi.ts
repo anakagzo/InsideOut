@@ -119,6 +119,14 @@ export const coursesApi = {
   },
 
   /**
+   * Remove a saved course for the authenticated user.
+   */
+  async unsave(courseId: number): Promise<ApiMessageResponse> {
+    const { data } = await apiClient.delete<ApiMessageResponse>(`/courses/${courseId}/save`);
+    return data;
+  },
+
+  /**
    * List saved courses for the authenticated user.
    */
   async listSaved(params?: SavedCoursesParams): Promise<CourseListResponse> {

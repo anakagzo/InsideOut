@@ -14,6 +14,7 @@ import {
   deleteCourse,
   fetchCourses,
   fetchSavedCourses,
+  unsaveCourse,
   updateCourse,
 } from "@/store/thunks";
 import type { CourseSummary } from "@/api/types";
@@ -66,6 +67,7 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
   const isLoading = useAppSelector((state) => selectCoursesLoadingForTab(state, activeTab));
   const activeStatusBadge = useAppSelector((state) => selectStatusBadgeByCoursesTab(state, activeTab));
   const mutationMessage = useAppSelector((state) => state.courses.lastMutationMessage);
+  const unsaveStatus = useAppSelector((state) => state.courses.requests.unsave.status);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -219,7 +221,23 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
     );
   };
 
-  const CourseRow = ({ course, showStatus = false }: { course: CourseSummary; showStatus?: boolean }) => (
+  const handleRemoveSavedCourse = async (courseId: number) => {
+    try {
+      await dispatch(unsaveCourse(courseId)).unwrap();
+    } catch {
+      toast.error("Unable to remove saved course right now.");
+    }
+  };
+
+  const CourseRow = ({
+    course,
+    showStatus = false,
+    showSavedAction = false,
+  }: {
+    course: CourseSummary;
+    showStatus?: boolean;
+    showSavedAction?: boolean;
+  }) => (
     <div
       onClick={() => navigate(`/course/${course.id}`)}
       className="flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-card border border-border rounded-lg cursor-pointer hover:shadow-card-hover transition-shadow"
@@ -300,6 +318,20 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
+      )}
+      {!isAdmin && showSavedAction && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="self-start sm:self-center"
+          onClick={(event) => {
+            event.stopPropagation();
+            void handleRemoveSavedCourse(course.id);
+          }}
+          disabled={unsaveStatus === "loading"}
+        >
+          Remove
+        </Button>
       )}
       <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 self-center" />
     </div>
@@ -382,7 +414,7 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading saved courses...</p>
             ) : displayedCourses.length > 0 ? (
-              displayedCourses.map((course) => <CourseRow key={course.id} course={course} />)
+              displayedCourses.map((course) => <CourseRow key={course.id} course={course} showSavedAction />)
             ) : (
               <EmptyState icon={Bookmark} message="No saved courses yet." />
             )}

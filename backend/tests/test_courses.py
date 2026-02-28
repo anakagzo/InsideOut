@@ -101,6 +101,33 @@ def test_student_can_save_and_list_saved_courses(
     assert payload["data"][0]["id"] == course.id
 
 
+def test_student_can_unsave_course_and_saved_list_updates(
+    client,
+    create_user,
+    create_course,
+    auth_headers,
+):
+    student = create_user()
+    course = create_course()
+
+    save_response = client.post(
+        f"/courses/{course.id}/save",
+        headers=auth_headers(student),
+    )
+    assert save_response.status_code == 201
+
+    unsave_response = client.delete(
+        f"/courses/{course.id}/save",
+        headers=auth_headers(student),
+    )
+    assert unsave_response.status_code == 200
+
+    list_response = client.get("/courses/saved", headers=auth_headers(student))
+    assert list_response.status_code == 200
+    payload = list_response.get_json()
+    assert payload["pagination"]["total"] == 0
+
+
 def test_admin_cannot_save_or_list_saved_courses(
     client,
     create_user,

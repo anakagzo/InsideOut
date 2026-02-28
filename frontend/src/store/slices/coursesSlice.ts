@@ -42,6 +42,10 @@ export const saveCourse = createAsyncThunk("courses/save", async (courseId: numb
   coursesApi.save(courseId),
 );
 
+export const unsaveCourse = createAsyncThunk("courses/unsave", async (courseId: number) =>
+  coursesApi.unsave(courseId),
+);
+
 export const fetchSavedCourses = createAsyncThunk(
   "courses/fetchSaved",
   async (params?: SavedCoursesParams) => coursesApi.listSaved(params),
@@ -64,6 +68,7 @@ interface CoursesState {
     update: RequestState;
     delete: RequestState;
     save: RequestState;
+    unsave: RequestState;
     savedList: RequestState;
     schedulesByCourseId: Record<number, RequestState>;
   };
@@ -82,6 +87,7 @@ const initialState: CoursesState = {
     update: createRequestState(),
     delete: createRequestState(),
     save: createRequestState(),
+    unsave: createRequestState(),
     savedList: createRequestState(),
     schedulesByCourseId: {},
   },
@@ -187,6 +193,23 @@ const coursesSlice = createSlice({
       })
       .addCase(saveCourse.rejected, (state, action) => {
         setFailed(state.requests.save, action.error.message);
+      })
+      .addCase(unsaveCourse.pending, (state) => {
+        setPending(state.requests.unsave);
+      })
+      .addCase(unsaveCourse.fulfilled, (state, action) => {
+        state.lastMutationMessage = action.payload.message;
+        if (state.saved) {
+          const hadCourse = state.saved.data.some((course) => course.id === action.meta.arg);
+          state.saved.data = state.saved.data.filter((course) => course.id !== action.meta.arg);
+          if (hadCourse && state.saved.pagination) {
+            state.saved.pagination.total = Math.max(0, state.saved.pagination.total - 1);
+          }
+        }
+        setSucceeded(state.requests.unsave);
+      })
+      .addCase(unsaveCourse.rejected, (state, action) => {
+        setFailed(state.requests.unsave, action.error.message);
       })
       .addCase(fetchSavedCourses.pending, (state) => {
         setPending(state.requests.savedList);

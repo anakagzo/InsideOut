@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Bookmark, Calendar } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,7 +18,9 @@ import {
   fetchCourseReviews,
   fetchCourseSchedules,
   fetchEnrollments,
+  fetchSavedCourses,
   saveCourse,
+  unsaveCourse,
 } from "@/store/thunks";
 
 const COURSE_DETAIL_DESCRIPTION_PREVIEW_CHAR_LIMIT = 280;
@@ -35,6 +38,7 @@ const CourseDetailPage = () => {
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [isDetailDescriptionExpanded, setIsDetailDescriptionExpanded] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [pendingAuthAction, setPendingAuthAction] = useState<"enroll" | "save" | null>(null);
 
   const course = useAppSelector((state) =>
     isCourseIdValid ? state.courses.byId[courseId] : undefined,
@@ -62,12 +66,15 @@ const CourseDetailPage = () => {
   );
 
   const saveStatus = useAppSelector((state) => state.courses.requests.save.status);
+  const unsaveStatus = useAppSelector((state) => state.courses.requests.unsave.status);
+  const savedCourses = useAppSelector((state) => state.courses.saved?.data ?? []);
   const enrollments = useAppSelector((state) => state.enrollments.list?.data ?? []);
   const enrollmentsStatus = useAppSelector((state) => state.enrollments.requests.list.status);
   const createReviewStatus = useAppSelector((state) => state.reviews.requests.create.status);
   const currentUser = useAppSelector((state) => state.users.currentUser);
   const accessToken = useAppSelector((state) => state.users.auth.accessToken);
   const isAuthenticated = Boolean(accessToken);
+  const isAdmin = currentUser?.role === "admin";
 
   useEffect(() => {
     if (isCourseIdValid) {
@@ -76,6 +83,12 @@ const CourseDetailPage = () => {
       dispatch(fetchEnrollments({ page: 1, page_size: 100 }));
     }
   }, [courseId, dispatch, isCourseIdValid]);
+
+  useEffect(() => {
+    if (isAuthenticated && !isAdmin) {
+      dispatch(fetchSavedCourses({ page: 1, page_size: 100 }));
+    }
+  }, [dispatch, isAuthenticated, isAdmin]);
 
   useEffect(() => {
     if (accessToken && !currentUser) {
@@ -116,8 +129,10 @@ const CourseDetailPage = () => {
     [courseId, enrollments],
   );
   const totalReviewCount = fullReviews.length || previewReviews.length;
-
-  const isAdmin = currentUser?.role === "admin";
+  const isCourseSaved = useMemo(
+    () => savedCourses.some((savedCourse) => savedCourse.id === courseId),
+    [courseId, savedCourses],
+  );
 
   const handleSubmitReview = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -149,10 +164,31 @@ const CourseDetailPage = () => {
 
   const handleEnrollNow = () => {
     if (!isAuthenticated) {
+      setPendingAuthAction("enroll");
       setIsAuthModalOpen(true);
       return;
     }
     navigate(`/checkout/${course.id}`);
+  };
+
+  const handleToggleSaveCourse = async () => {
+    if (!isAuthenticated) {
+      setPendingAuthAction("save");
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    try {
+      const action = isCourseSaved ? unsaveCourse(courseId) : saveCourse(courseId);
+      const response = await dispatch(action).unwrap();
+      toast.success(response.message || (isCourseSaved ? "Course removed from saved list." : "Course saved successfully."));
+
+      if (!isCourseSaved) {
+        dispatch(fetchSavedCourses({ page: 1, page_size: 100 }));
+      }
+    } catch {
+      toast.error(isCourseSaved ? "Unable to remove saved course right now." : "Unable to save course right now.");
+    }
   };
 
   if (!isCourseIdValid) {
@@ -487,11 +523,11 @@ const CourseDetailPage = () => {
                     <Button
                       size="lg"
                       variant="outline"
-                      onClick={() => dispatch(saveCourse(courseId))}
-                      disabled={saveStatus === "loading"}
+                      onClick={handleToggleSaveCourse}
+                      disabled={saveStatus === "loading" || unsaveStatus === "loading"}
                       className="w-full"
                     >
-                      <Bookmark className="w-4 h-4 mr-2" /> Save for Later
+                      <Bookmark className="w-4 h-4 mr-2" /> {isCourseSaved ? "Remove from Saved" : "Save for Later"}
                     </Button>
                   </div>
                 )}
@@ -504,7 +540,17 @@ const CourseDetailPage = () => {
       <AuthModal
         open={isAuthModalOpen}
         onOpenChange={setIsAuthModalOpen}
-        onAuthenticated={() => navigate(`/checkout/${course.id}`)}
+        onAuthenticated={() => {
+          const action = pendingAuthAction;
+          setPendingAuthAction(null);
+
+          if (action === "save") {
+            void handleToggleSaveCourse();
+            return;
+          }
+
+          navigate(`/checkout/${course.id}`);
+        }}
       />
     </div>
   );

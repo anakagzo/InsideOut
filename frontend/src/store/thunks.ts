@@ -12,6 +12,7 @@ export {
   updateCourse,
   deleteCourse,
   saveCourse,
+  unsaveCourse,
   fetchSavedCourses,
   fetchCourseSchedules,
 } from "@/store/slices/coursesSlice";
