@@ -1,6 +1,7 @@
 """User authentication and profile management endpoints."""
 
 import logging
+import re
 from datetime import UTC, datetime
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
@@ -33,6 +34,30 @@ def _get_user_or_404(user_id):
     if not user:
         abort(404, message="User not found.")
     return user
+
+
+def _normalize_optional_phone_number(phone_number: str | None) -> str | None:
+    if phone_number is None:
+        return None
+
+    normalized = re.sub(r"\s+", " ", phone_number).strip()
+    return normalized or None
+
+
+def _normalize_text_value(value: str | None, *, empty_to_none: bool = False) -> str | None:
+    if value is None:
+        return None
+
+    normalized = re.sub(r"\s+", " ", value).strip()
+    if not normalized and empty_to_none:
+        return None
+    return normalized
+
+
+def _normalize_email_value(email: str | None) -> str | None:
+    if email is None:
+        return None
+    return email.strip().lower()
 
 
 
@@ -70,15 +95,15 @@ class UserRegister(MethodView):
         user = UserModel()
         user.email = email
         user.password = hash_password(user_data["password"])
-        user.first_name = user_data.get("first_name")
-        user.last_name = user_data.get("last_name")
+        user.first_name = _normalize_text_value(user_data.get("first_name"))
+        user.last_name = _normalize_text_value(user_data.get("last_name"))
         user.initials = generate_unique_initials(
-            user_data.get("first_name"),
-            user_data.get("last_name"),
+            user.first_name,
+            user.last_name,
             UserModel,
         )
-        user.phone_number = user_data.get("phone_number")
-        user.occupation = user_data.get("occupation")
+        user.phone_number = _normalize_optional_phone_number(user_data.get("phone_number"))
+        user.occupation = _normalize_text_value(user_data.get("occupation"), empty_to_none=True)
         user.role = "student"
 
         db.session.add(user)
@@ -128,6 +153,28 @@ class UserSelf(MethodView):
         user_id = get_jwt_identity()
         logger.info("Profile update requested", extra={"user_id": user_id})
         user = _get_user_or_404(user_id)
+
+        if "phone_number" in user_data:
+            user_data["phone_number"] = _normalize_optional_phone_number(user_data.get("phone_number"))
+        if "first_name" in user_data:
+            user_data["first_name"] = _normalize_text_value(user_data.get("first_name"))
+        if "last_name" in user_data:
+            user_data["last_name"] = _normalize_text_value(user_data.get("last_name"))
+        if "occupation" in user_data:
+            user_data["occupation"] = _normalize_text_value(user_data.get("occupation"), empty_to_none=True)
+        if "email" in user_data:
+            normalized_email = _normalize_email_value(user_data.get("email"))
+            if not normalized_email:
+                abort(422, message="Invalid email address.")
+
+            existing_user = UserModel.query.filter(
+                UserModel.email == normalized_email,
+                UserModel.id != user.id,
+            ).first()
+            if existing_user:
+                abort(409, message="Email already exists.")
+
+            user_data["email"] = normalized_email
 
         for field in user_data:
             setattr(user, field, user_data[field])

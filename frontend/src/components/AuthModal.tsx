@@ -34,6 +34,16 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
+  const phoneRegex = useMemo(() => /^[+]?[-()\s\d]{7,20}$/, []);
+
+  const isValidPhoneNumber = (value: string): boolean => {
+    if (!phoneRegex.test(value)) {
+      return false;
+    }
+
+    const digitsOnly = value.replace(/\D/g, "");
+    return digitsOnly.length >= 7;
+  };
 
   const resetFormState = () => {
     setFormError(null);
@@ -104,6 +114,11 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
 
     if (registerPassword !== confirmPassword) {
       return "Passwords do not match.";
+    }
+
+    const trimmedPhone = phoneNumber.trim();
+    if (trimmedPhone && !isValidPhoneNumber(trimmedPhone)) {
+      return "Please enter a valid phone number or leave it blank.";
     }
 
     return null;
@@ -309,6 +324,9 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
                 value={phoneNumber}
                 onChange={(event) => setPhoneNumber(event.target.value)}
                 autoComplete="tel"
+                inputMode="tel"
+                pattern="^[+]?[-()\s\d]{7,20}$"
+                title="Enter a valid phone number or leave this blank"
               />
             </div>
             <div className="space-y-1">

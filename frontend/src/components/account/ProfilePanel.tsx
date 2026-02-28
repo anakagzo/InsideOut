@@ -15,6 +15,18 @@ export const ProfilePanel = ({ currentUserId }: ProfilePanelProps) => {
   const dispatch = useAppDispatch();
   const currentUser = useAppSelector((state) => state.users.currentUser);
   const [isEditing, setIsEditing] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<"firstName" | "lastName" | "email" | "phone", string>>>({});
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^[+]?[-()\s\d]{7,20}$/;
+
+  const isValidPhoneNumber = (value: string): boolean => {
+    if (!phoneRegex.test(value)) {
+      return false;
+    }
+    const digitsOnly = value.replace(/\D/g, "");
+    return digitsOnly.length >= 7;
+  };
 
   const [formData, setFormData] = useState({
     firstName: currentUser?.first_name || "",
@@ -45,13 +57,46 @@ export const ProfilePanel = ({ currentUserId }: ProfilePanelProps) => {
   }, [currentUser]);
 
   const handleSave = async () => {
+    const trimmedFirstName = formData.firstName.trim();
+    const trimmedLastName = formData.lastName.trim();
+    const trimmedEmail = formData.email.trim().toLowerCase();
+    const trimmedPhone = formData.phone.trim();
+    const trimmedOccupation = formData.occupation.trim();
+
+    const nextErrors: Partial<Record<"firstName" | "lastName" | "email" | "phone", string>> = {};
+
+    if (!trimmedFirstName) {
+      nextErrors.firstName = "First name is required.";
+    }
+
+    if (!trimmedLastName) {
+      nextErrors.lastName = "Last name is required.";
+    }
+
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+      nextErrors.email = "Please enter a valid email address.";
+    }
+
+    if (trimmedPhone && !isValidPhoneNumber(trimmedPhone)) {
+      nextErrors.phone = "Please enter a valid phone number or leave blank.";
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      toast.error("Please fix the highlighted fields.");
+      return;
+    }
+
+    setFieldErrors({});
+
     try {
       await dispatch(
         updateCurrentUser({
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          phone_number: formData.phone,
-          occupation: formData.occupation,
+          ...(isEmailEditable ? { email: trimmedEmail } : {}),
+          first_name: trimmedFirstName,
+          last_name: trimmedLastName,
+          phone_number: trimmedPhone || undefined,
+          occupation: trimmedOccupation || undefined,
         }),
       ).unwrap();
 
@@ -86,6 +131,7 @@ export const ProfilePanel = ({ currentUserId }: ProfilePanelProps) => {
       occupation: currentUser.occupation || "",
     });
     setIsEditing(false);
+    setFieldErrors({});
   };
 
   return (
@@ -110,9 +156,13 @@ export const ProfilePanel = ({ currentUserId }: ProfilePanelProps) => {
             </Label>
             <Input
               value={formData.firstName}
-              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, firstName: e.target.value });
+                setFieldErrors((prev) => ({ ...prev, firstName: undefined }));
+              }}
               disabled={!isEditing}
             />
+            {fieldErrors.firstName && <p className="text-xs text-destructive mt-1">{fieldErrors.firstName}</p>}
           </div>
           <div>
             <Label className="flex items-center gap-1 mb-1.5">
@@ -120,9 +170,13 @@ export const ProfilePanel = ({ currentUserId }: ProfilePanelProps) => {
             </Label>
             <Input
               value={formData.lastName}
-              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, lastName: e.target.value });
+                setFieldErrors((prev) => ({ ...prev, lastName: undefined }));
+              }}
               disabled={!isEditing}
             />
+            {fieldErrors.lastName && <p className="text-xs text-destructive mt-1">{fieldErrors.lastName}</p>}
           </div>
         </div>
 
@@ -133,9 +187,13 @@ export const ProfilePanel = ({ currentUserId }: ProfilePanelProps) => {
           <Input
             type="email"
             value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            onChange={(e) => {
+              setFormData({ ...formData, email: e.target.value });
+              setFieldErrors((prev) => ({ ...prev, email: undefined }));
+            }}
             disabled={!isEditing || !isEmailEditable}
           />
+          {fieldErrors.email && <p className="text-xs text-destructive mt-1">{fieldErrors.email}</p>}
         </div>
 
         <div>
@@ -145,10 +203,17 @@ export const ProfilePanel = ({ currentUserId }: ProfilePanelProps) => {
           <Input
             type="tel"
             value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            onChange={(e) => {
+              setFormData({ ...formData, phone: e.target.value });
+              setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+            }}
             disabled={!isEditing}
             placeholder="Optional"
+            inputMode="tel"
+            pattern="^[+]?[-()\s\d]{7,20}$"
+            title="Enter a valid phone number or leave this blank"
           />
+          {fieldErrors.phone && <p className="text-xs text-destructive mt-1">{fieldErrors.phone}</p>}
         </div>
 
         <div>

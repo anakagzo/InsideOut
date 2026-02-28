@@ -53,6 +53,74 @@ def test_register_duplicate_email_returns_409(client, create_user):
     assert response.status_code == 409
 
 
+def test_register_invalid_phone_returns_422(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "invalid-phone@example.com",
+            "password": "Password123!",
+            "confirm_password": "Password123!",
+            "first_name": "A",
+            "last_name": "B",
+            "phone_number": "abc-not-a-phone",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_register_phone_number_is_normalized(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "normalized-phone@example.com",
+            "password": "Password123!",
+            "confirm_password": "Password123!",
+            "first_name": "Normalize",
+            "last_name": "Phone",
+            "phone_number": "  +44   7000   000000  ",
+        },
+    )
+
+    assert response.status_code == 201
+    tokens = response.get_json()
+
+    me_response = client.get(
+        "/me",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert me_response.status_code == 200
+    me_data = me_response.get_json()
+    assert me_data["phone_number"] == "+44 7000 000000"
+
+
+def test_register_name_and_occupation_are_normalized(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "normalized-profile@example.com",
+            "password": "Password123!",
+            "confirm_password": "Password123!",
+            "first_name": "  Mary   Jane  ",
+            "last_name": "  Doe   Smith  ",
+            "occupation": "  SEN   Teacher  ",
+        },
+    )
+
+    assert response.status_code == 201
+    tokens = response.get_json()
+
+    me_response = client.get(
+        "/me",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert me_response.status_code == 200
+    me_data = me_response.get_json()
+    assert me_data["first_name"] == "Mary Jane"
+    assert me_data["last_name"] == "Doe Smith"
+    assert me_data["occupation"] == "SEN Teacher"
+
+
 def test_login_invalid_credentials_returns_401(client, create_user):
     create_user(email="student@example.com", password="Password123!")
 
@@ -74,6 +142,98 @@ def test_change_password_requires_fresh_token(client, create_user, auth_headers)
     )
 
     assert response.status_code == 401
+
+
+def test_update_profile_invalid_phone_returns_422(client, create_user, auth_headers):
+    student = create_user(email="phone-update@example.com")
+
+    response = client.put(
+        "/me",
+        json={"phone_number": "bad-phone-value"},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_profile_phone_blank_is_saved_as_none(client, create_user, auth_headers):
+    student = create_user(email="phone-empty@example.com", phone_number="+44 7000 000000")
+
+    response = client.put(
+        "/me",
+        json={"phone_number": "     "},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["phone_number"] is None
+
+
+def test_update_profile_occupation_blank_is_saved_as_none(client, create_user, auth_headers):
+    student = create_user(email="occupation-empty@example.com", occupation="Professional")
+
+    response = client.put(
+        "/me",
+        json={"occupation": "     "},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["occupation"] is None
+
+
+def test_update_profile_names_are_normalized(client, create_user, auth_headers):
+    student = create_user(email="name-normalize@example.com", first_name="Jane", last_name="Doe")
+
+    response = client.put(
+        "/me",
+        json={"first_name": "  Amy   Lee ", "last_name": "  Jones   Brown  "},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["first_name"] == "Amy Lee"
+    assert payload["last_name"] == "Jones Brown"
+
+
+def test_update_profile_invalid_email_returns_422(client, create_user, auth_headers):
+    student = create_user(email="invalid-email-update@example.com")
+
+    response = client.put(
+        "/me",
+        json={"email": "not-an-email"},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_profile_duplicate_email_returns_409(client, create_user, auth_headers):
+    student = create_user(email="student-update-email@example.com")
+    create_user(email="taken-email@example.com")
+
+    response = client.put(
+        "/me",
+        json={"email": "taken-email@example.com"},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 409
+
+
+def test_update_profile_blank_first_name_returns_422(client, create_user, auth_headers):
+    student = create_user(email="blank-first-name@example.com")
+
+    response = client.put(
+        "/me",
+        json={"first_name": "   "},
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 422
 
 
 def test_change_password_success(client, create_user, auth_headers):
