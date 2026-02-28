@@ -11,7 +11,7 @@ from flask_jwt_extended import jwt_required, verify_jwt_in_request, get_jwt_iden
 from models import Course, SavedCourse, Enrollment, Schedule, User
 from db import db
 from schemas import CourseSchema, CourseDetailSchema, CourseListResponseSchema, ScheduleSchema
-from utils.decorators import admin_required
+from utils.decorators import admin_required, student_required
 from utils.media_upload import MediaUploadService
 from utils.notifications import notify_new_course_published
 
@@ -290,6 +290,7 @@ class SaveCourse(MethodView):
     """Endpoint for students to save a course."""
 
     @jwt_required()
+    @student_required
     def post(self, course_id):
         """Save a course for the current user if not already saved."""
         user_id = get_jwt_identity()
@@ -320,6 +321,7 @@ class SavedCoursesList(MethodView):
     """List saved courses for the current user."""
 
     @jwt_required()
+    @student_required
     @blp.response(200, CourseListResponseSchema)
     def get(self):
         """Return paginated saved courses for the authenticated user."""

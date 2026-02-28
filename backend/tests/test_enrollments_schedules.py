@@ -41,6 +41,24 @@ def test_student_cannot_create_enrollment_for_another_user(
     assert response.status_code == 403
 
 
+def test_admin_cannot_create_enrollment(
+    client,
+    create_user,
+    create_course,
+    auth_headers,
+):
+    admin = create_user(role="admin")
+    course = create_course()
+
+    response = client.post(
+        "/enrollments/",
+        json={"student_id": admin.id, "course_id": course.id},
+        headers=auth_headers(admin),
+    )
+
+    assert response.status_code == 403
+
+
 def test_admin_can_list_enrollments(
     client,
     create_user,

@@ -54,6 +54,29 @@ def test_create_stripe_checkout_session(client, app, create_user, create_course,
     assert payload["checkout_url"].startswith("https://checkout.stripe.test")
 
 
+def test_admin_cannot_create_stripe_checkout_session(client, app, create_user, create_course, auth_headers, monkeypatch):
+    import resources.payment as payment_resource
+
+    admin = create_user(role="admin", email="stripe-admin@example.com")
+    course = create_course(title="Admin Checkout Block", price="199.00")
+
+    _mock_stripe(monkeypatch, payment_resource)
+
+    app.config.update(
+        STRIPE_SECRET_KEY="sk_test_123",
+        STRIPE_PUBLISHABLE_KEY="pk_test_123",
+        FRONTEND_BASE_URL="http://localhost:8080",
+    )
+
+    response = client.post(
+        "/payments/stripe/create-checkout-session",
+        json={"course_id": course.id},
+        headers=auth_headers(admin),
+    )
+
+    assert response.status_code == 403
+
+
 def test_finalize_payment_creates_enrollment_and_validates_token(
     client,
     app,

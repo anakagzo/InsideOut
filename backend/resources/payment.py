@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 
 from db import db
 from models import Course, Enrollment, User, Schedule
+from utils.decorators import student_required
 from utils.notifications import notify_payment_confirmed
 from schemas import (
 	StripeCheckoutSessionRequestSchema,
@@ -100,6 +101,8 @@ def _finalize_paid_checkout_session(session, expected_user_id=None):
 		abort(400, message="Stripe session metadata is incomplete.")
 
 	user = _get_user_or_404(session_user_id)
+	if user.role == "admin":
+		abort(403, message="Admin users cannot enroll in courses.")
 	course = _get_course_or_404(course_id)
 
 	enrollment = Enrollment.query.filter_by(student_id=session_user_id, course_id=course.id).first()
@@ -161,6 +164,7 @@ class StripeCheckoutSessionCreate(MethodView):
 	"""Create Stripe Checkout session for course enrollment payment."""
 
 	@jwt_required()
+	@student_required
 	@blp.arguments(StripeCheckoutSessionRequestSchema)
 	@blp.response(200, StripeCheckoutSessionResponseSchema)
 	def post(self, data):
@@ -225,6 +229,7 @@ class StripeCheckoutFinalize(MethodView):
 	"""Finalize Stripe payment and create enrollment + onboarding token."""
 
 	@jwt_required()
+	@student_required
 	@blp.arguments(StripeFinalizeRequestSchema)
 	@blp.response(200, StripeFinalizeResponseSchema)
 	def post(self, data):

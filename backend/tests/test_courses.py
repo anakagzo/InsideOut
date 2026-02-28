@@ -101,6 +101,25 @@ def test_student_can_save_and_list_saved_courses(
     assert payload["data"][0]["id"] == course.id
 
 
+def test_admin_cannot_save_or_list_saved_courses(
+    client,
+    create_user,
+    create_course,
+    auth_headers,
+):
+    admin = create_user(role="admin")
+    course = create_course()
+
+    save_response = client.post(
+        f"/courses/{course.id}/save",
+        headers=auth_headers(admin),
+    )
+    assert save_response.status_code == 403
+
+    list_response = client.get("/courses/saved", headers=auth_headers(admin))
+    assert list_response.status_code == 403
+
+
 def test_type_filter_requires_auth_and_valid_value(client):
     unauthenticated_response = client.get("/courses/?type=active")
     assert unauthenticated_response.status_code == 401

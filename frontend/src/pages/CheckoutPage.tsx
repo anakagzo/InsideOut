@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/dialog";
 import { useCheckoutCourse } from "@/features/checkout/useCheckoutCourse";
 import { usePayments } from "@/features/payments/usePayments";
+import defaultCourseImage from "@/assets/course-default-img.jpg";
+
+const DEFAULT_COURSE_IMAGE = defaultCourseImage;
 
 /**
  * Formats backend decimal-like price values for display.
@@ -168,6 +171,13 @@ const CheckoutPage = () => {
   };
 
   const effectiveCheckoutError = checkoutError ?? finalizeCheckoutError ?? createCheckoutError;
+  const courseImageSrc = course.image_url?.trim() ? course.image_url : DEFAULT_COURSE_IMAGE;
+  const handleCourseImageError = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = event.currentTarget;
+    if (target.src !== DEFAULT_COURSE_IMAGE) {
+      target.src = DEFAULT_COURSE_IMAGE;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -260,12 +270,13 @@ const CheckoutPage = () => {
               <h3 className="font-semibold text-card-foreground mb-4">Order Summary</h3>
               <div className="flex gap-3 mb-4">
                 <img
-                  src={course.image_url ?? "/media/defaults/course-default.png"}
+                  src={courseImageSrc}
                   alt={course.title}
+                  onError={handleCourseImageError}
                   className="w-16 h-16 rounded-md object-cover"
                 />
                 <div>
-                  <p className="text-sm font-medium text-card-foreground">{course.title}</p>
+                  <p className="text-sm font-medium text-card-foreground break-words line-clamp-2">{course.title}</p>
                   <p className="text-xs text-muted-foreground">InsideOut Course</p>
                 </div>
               </div>

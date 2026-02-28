@@ -69,9 +69,6 @@ class AvailabilityList(MethodView):
         logger.info("Availability upsert requested", extra={"user_id": user_id})
         admin_user = _get_user_or_404(user_id)
 
-        if admin_user.role != "admin":
-            abort(403, message="Only admins can manage availability.")
-
         # Read request payload with safe defaults.
         availability_payload = data.get("availability", [])
         unavailable_dates_payload = data.get("unavailable_dates", [])

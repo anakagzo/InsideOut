@@ -1,6 +1,5 @@
 import logging
 from functools import wraps
-from flask import jsonify
 from flask_jwt_extended import get_jwt, get_jwt_identity
 from flask_smorest import abort
 from db import db
@@ -15,7 +14,7 @@ def admin_required(fn):
         logger.debug("Admin access check", extra={"role": claims.get("role")})
         if claims.get("role") != "admin":
             logger.warning("Admin access denied", extra={"role": claims.get("role")})
-            return jsonify({"message": "Admin privilege required."}), 403
+            abort(403, message="Admin privilege required.")
         return fn(*args, **kwargs)
     return wrapper
 
@@ -36,3 +35,8 @@ def role_required(role_name):
             return fn(*args, **kwargs)
         return decorator
     return wrapper
+
+
+def student_required(fn):
+    """Allow access only to student-role users."""
+    return role_required("student")(fn)

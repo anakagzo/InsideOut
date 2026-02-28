@@ -4,7 +4,7 @@ import logging
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from utils.decorators import admin_required
+from utils.decorators import admin_required, student_required
 from models import Enrollment, User, Course
 from db import db
 from schemas import EnrollmentSchema, GroupedScheduleSchema, EnrollmentListResponseSchema
@@ -101,6 +101,7 @@ class EnrollmentList(MethodView):
         }
 
     @jwt_required()
+    @student_required
     @blp.arguments(EnrollmentSchema)
     @blp.response(201, EnrollmentSchema)
     def post(self, data):

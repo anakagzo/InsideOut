@@ -22,9 +22,11 @@ import {
   fetchPublicAvailability,
 } from "@/store/thunks";
 import { usePayments } from "@/features/payments/usePayments";
+import defaultCourseImage from "@/assets/course-default-img.jpg";
 
 const ONBOARDING_DURATION_MINUTES = 60;
 const SLOT_STEP_MINUTES = 30;
+const DEFAULT_COURSE_IMAGE = defaultCourseImage;
 
 const normalizeTime = (value: string) => value.slice(0, 5);
 const normalizeTimeForApi = (value: string) => (value.length === 5 ? `${value}:00` : value);
@@ -327,6 +329,14 @@ const OnboardingBookingPage = () => {
     );
   }
 
+  const courseImageSrc = course.image_url?.trim() ? course.image_url : DEFAULT_COURSE_IMAGE;
+  const handleCourseImageError = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = event.currentTarget;
+    if (target.src !== DEFAULT_COURSE_IMAGE) {
+      target.src = DEFAULT_COURSE_IMAGE;
+    }
+  };
+
   if (effectiveTokenValidationStatus === "idle" || effectiveTokenValidationStatus === "loading") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -544,12 +554,13 @@ const OnboardingBookingPage = () => {
               {/* Course Info */}
               <div className="flex gap-3">
                 <img
-                  src={course.image_url ?? "/media/defaults/course-default.png"}
+                  src={courseImageSrc}
                   alt={course.title}
+                  onError={handleCourseImageError}
                   className="w-16 h-16 rounded-lg object-cover"
                 />
                 <div>
-                  <h4 className="font-medium text-foreground text-sm">{course.title}</h4>
+                  <h4 className="font-medium text-foreground text-sm break-words line-clamp-2">{course.title}</h4>
                   <p className="text-xs text-muted-foreground">Onboarding</p>
                 </div>
               </div>
@@ -657,7 +668,7 @@ const OnboardingBookingPage = () => {
           <div className="bg-accent/50 rounded-lg p-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Course</span>
-              <span className="font-medium text-foreground">{course.title}</span>
+              <span className="font-medium text-foreground break-words text-right max-w-[60%]">{course.title}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Date</span>

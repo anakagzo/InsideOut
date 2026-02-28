@@ -8,6 +8,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { StarRating } from "@/components/StarRating";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import defaultCourseImage from "@/assets/course-default-img.jpg";
 import {
   createCourseReview,
   fetchCourseDetail,
@@ -17,6 +18,9 @@ import {
   fetchEnrollments,
   saveCourse,
 } from "@/store/thunks";
+
+const COURSE_DETAIL_DESCRIPTION_PREVIEW_CHAR_LIMIT = 280;
+const DEFAULT_COURSE_IMAGE = defaultCourseImage;
 
 const CourseDetailPage = () => {
   const { id } = useParams();
@@ -28,6 +32,7 @@ const CourseDetailPage = () => {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
+  const [isDetailDescriptionExpanded, setIsDetailDescriptionExpanded] = useState(false);
 
   const course = useAppSelector((state) =>
     isCourseIdValid ? state.courses.byId[courseId] : undefined,
@@ -74,6 +79,10 @@ const CourseDetailPage = () => {
       dispatch(fetchCurrentUser());
     }
   }, [accessToken, currentUser, dispatch]);
+
+  useEffect(() => {
+    setIsDetailDescriptionExpanded(false);
+  }, [courseId]);
 
   useEffect(() => {
     if (isCourseIdValid && tab === "schedules" && schedulesStatus === "idle") {
@@ -185,17 +194,36 @@ const CourseDetailPage = () => {
     );
   }
 
+  const hasLongDetailDescription =
+    course.description.length > COURSE_DETAIL_DESCRIPTION_PREVIEW_CHAR_LIMIT;
+  const displayedDetailDescription =
+    hasLongDetailDescription && !isDetailDescriptionExpanded
+      ? `${course.description.slice(0, COURSE_DETAIL_DESCRIPTION_PREVIEW_CHAR_LIMIT).trimEnd()}...`
+      : course.description;
+  const heroImageSrc = course.image_url?.trim() ? course.image_url : DEFAULT_COURSE_IMAGE;
+  const handleHeroImageError = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = event.currentTarget;
+    if (target.src !== DEFAULT_COURSE_IMAGE) {
+      target.src = DEFAULT_COURSE_IMAGE;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
       <main className="flex-1">
         {/* Hero image */}
         <div className="w-full h-64 md:h-80 overflow-hidden relative">
-          <img src={course.image_url ?? "/media/defaults/course-default.png"} alt={course.title} className="w-full h-full object-cover" />
+          <img
+            src={heroImageSrc}
+            alt={course.title}
+            onError={handleHeroImageError}
+            className="w-full h-full object-cover"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
           <div className="absolute bottom-6 left-0 right-0 container mx-auto px-4">
             <span className="text-xs font-medium bg-primary text-primary-foreground px-3 py-1 rounded-full">Course</span>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground mt-2">{course.title}</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground mt-2 break-words max-w-4xl">{course.title}</h1>
           </div>
         </div>
 
@@ -217,7 +245,18 @@ const CourseDetailPage = () => {
                 <span className="text-2xl font-bold text-primary">£{Number(course.price).toFixed(2)}</span>
               </div>
 
-              <p className="text-muted-foreground leading-relaxed max-w-2xl">{course.description}</p>
+              <div className="max-w-3xl">
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap break-words">{displayedDetailDescription}</p>
+                {hasLongDetailDescription && (
+                  <button
+                    type="button"
+                    className="mt-2 text-sm text-primary font-medium hover:underline"
+                    onClick={() => setIsDetailDescriptionExpanded((prev) => !prev)}
+                  >
+                    {isDetailDescriptionExpanded ? "Read less" : "Read more"}
+                  </button>
+                )}
+              </div>
 
               {/* Preview reviews */}
               <div>
@@ -258,19 +297,21 @@ const CourseDetailPage = () => {
                 </button>
               </div>
 
-              <div className="flex flex-wrap gap-3 pt-4">
-                <Button size="lg" onClick={() => navigate(`/checkout/${course.id}`)} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  Enroll Now
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => dispatch(saveCourse(courseId))}
-                  disabled={saveStatus === "loading"}
-                >
-                  <Bookmark className="w-4 h-4 mr-2" /> Save for Later
-                </Button>
-              </div>
+              {!isAdmin && (
+                <div className="flex flex-wrap gap-3 pt-4">
+                  <Button size="lg" onClick={() => navigate(`/checkout/${course.id}`)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    Enroll Now
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => dispatch(saveCourse(courseId))}
+                    disabled={saveStatus === "loading"}
+                  >
+                    <Bookmark className="w-4 h-4 mr-2" /> Save for Later
+                  </Button>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="schedules">
@@ -305,9 +346,11 @@ const CourseDetailPage = () => {
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Calendar className="w-12 h-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">You are not enrolled for this course — no schedule.</p>
-                <Button className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => navigate(`/checkout/${course.id}`)}>
-                  Enroll to See Schedule
-                </Button>
+                {!isAdmin && (
+                  <Button className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => navigate(`/checkout/${course.id}`)}>
+                    Enroll to See Schedule
+                  </Button>
+                )}
               </div>
               )}
             </TabsContent>
