@@ -77,6 +77,32 @@ def test_admin_cannot_create_stripe_checkout_session(client, app, create_user, c
     assert response.status_code == 403
 
 
+def test_unauthenticated_user_cannot_create_stripe_checkout_session(
+    client,
+    app,
+    create_course,
+    monkeypatch,
+):
+    import resources.payment as payment_resource
+
+    course = create_course(title="Auth Required Checkout", price="99.00")
+
+    _mock_stripe(monkeypatch, payment_resource)
+
+    app.config.update(
+        STRIPE_SECRET_KEY="sk_test_123",
+        STRIPE_PUBLISHABLE_KEY="pk_test_123",
+        FRONTEND_BASE_URL="http://localhost:8080",
+    )
+
+    response = client.post(
+        "/payments/stripe/create-checkout-session",
+        json={"course_id": course.id},
+    )
+
+    assert response.status_code == 401
+
+
 def test_finalize_payment_creates_enrollment_and_validates_token(
     client,
     app,
@@ -128,6 +154,39 @@ def test_finalize_payment_creates_enrollment_and_validates_token(
     validate_payload = validate_response.get_json()
     assert validate_payload["valid"] is True
     assert validate_payload["enrollment_id"] == finalize_payload["enrollment_id"]
+
+
+def test_unauthenticated_user_cannot_finalize_payment(
+    client,
+    app,
+    create_user,
+    create_course,
+    monkeypatch,
+):
+    import resources.payment as payment_resource
+
+    user = create_user(role="student", email="unauth-finalize@example.com")
+    course = create_course(title="Finalize Auth Required", price="149.00")
+
+    session = SimpleNamespace(
+        id="cs_finalize_unauth_123",
+        payment_status="paid",
+        metadata={"user_id": str(user.id), "course_id": str(course.id)},
+    )
+    _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
+
+    app.config.update(
+        STRIPE_SECRET_KEY="sk_test_123",
+        STRIPE_PUBLISHABLE_KEY="pk_test_123",
+        ONBOARDING_TOKEN_SECRET="token-secret",
+    )
+
+    response = client.post(
+        "/payments/stripe/finalize",
+        json={"session_id": "cs_finalize_unauth_123"},
+    )
+
+    assert response.status_code == 401
 
 
 def test_webhook_checkout_completed_creates_enrollment(

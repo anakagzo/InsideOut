@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { CourseCard } from "@/components/CourseCard";
+import { CourseCard } from "../components/CourseCard";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchCourses } from "@/store/thunks";
 
@@ -87,7 +87,13 @@ const CoursesPage = () => {
             </div>
           )}
           {paginated.map((course) => (
-            <CourseCard key={course.id} course={course} variant="wide" />
+            <CourseCard
+              key={course.id}
+              course={course}
+              variant="wide"
+              descriptionAction="navigate"
+              descriptionActionLabel="See more"
+            />
           ))}
           {listStatus === "succeeded" && paginated.length === 0 && (
             <p className="text-center text-muted-foreground py-12">No courses found matching your search.</p>

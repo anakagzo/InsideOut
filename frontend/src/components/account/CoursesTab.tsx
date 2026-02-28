@@ -331,62 +331,74 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
         )}
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
-        <TabsList className="bg-secondary w-full justify-start overflow-x-auto whitespace-nowrap">
-          <TabsTrigger value="all" className="gap-1 shrink-0">
-            <BookOpen className="w-3.5 h-3.5" /> All
-          </TabsTrigger>
-          <TabsTrigger value="enrolled" className="gap-1 shrink-0">
-            <GraduationCap className="w-3.5 h-3.5" /> Enrolled
-          </TabsTrigger>
-          <TabsTrigger value="completed" className="gap-1 shrink-0">
-            <GraduationCap className="w-3.5 h-3.5" /> Completed
-          </TabsTrigger>
-          <TabsTrigger value="saved" className="gap-1 shrink-0">
-            <Bookmark className="w-3.5 h-3.5" /> Saved
-          </TabsTrigger>
-        </TabsList>
+      {!isAdmin ? (
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
+          <TabsList className="bg-secondary w-full justify-start overflow-x-auto whitespace-nowrap">
+            <TabsTrigger value="all" className="gap-1 shrink-0">
+              <BookOpen className="w-3.5 h-3.5" /> All
+            </TabsTrigger>
+            <TabsTrigger value="enrolled" className="gap-1 shrink-0">
+              <GraduationCap className="w-3.5 h-3.5" /> Enrolled
+            </TabsTrigger>
+            <TabsTrigger value="completed" className="gap-1 shrink-0">
+              <GraduationCap className="w-3.5 h-3.5" /> Completed
+            </TabsTrigger>
+            <TabsTrigger value="saved" className="gap-1 shrink-0">
+              <Bookmark className="w-3.5 h-3.5" /> Saved
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="all" className="space-y-3 mt-4">
+          <TabsContent value="all" className="space-y-3 mt-4">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading courses...</p>
+            ) : displayedCourses.length > 0 ? (
+              displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)
+            ) : (
+              <EmptyState icon={BookOpen} message="No courses found." />
+            )}
+          </TabsContent>
+
+          <TabsContent value="enrolled" className="space-y-3 mt-4">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading enrolled courses...</p>
+            ) : displayedCourses.length > 0 ? (
+              displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)
+            ) : (
+              <EmptyState icon={GraduationCap} message="No enrolled courses yet." />
+            )}
+          </TabsContent>
+
+          <TabsContent value="completed" className="space-y-3 mt-4">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading completed courses...</p>
+            ) : displayedCourses.length > 0 ? (
+              displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)
+            ) : (
+              <EmptyState icon={GraduationCap} message="No completed courses yet." />
+            )}
+          </TabsContent>
+
+          <TabsContent value="saved" className="space-y-3 mt-4">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading saved courses...</p>
+            ) : displayedCourses.length > 0 ? (
+              displayedCourses.map((course) => <CourseRow key={course.id} course={course} />)
+            ) : (
+              <EmptyState icon={Bookmark} message="No saved courses yet." />
+            )}
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <div className="space-y-3 mt-1">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading courses...</p>
           ) : displayedCourses.length > 0 ? (
-            displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus={!isAdmin} />)
+            displayedCourses.map((course) => <CourseRow key={course.id} course={course} />)
           ) : (
             <EmptyState icon={BookOpen} message="No courses found." />
           )}
-        </TabsContent>
-
-        <TabsContent value="enrolled" className="space-y-3 mt-4">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading enrolled courses...</p>
-          ) : displayedCourses.length > 0 ? (
-            displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)
-          ) : (
-            <EmptyState icon={GraduationCap} message="No enrolled courses yet." />
-          )}
-        </TabsContent>
-
-        <TabsContent value="completed" className="space-y-3 mt-4">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading completed courses...</p>
-          ) : displayedCourses.length > 0 ? (
-            displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)
-          ) : (
-            <EmptyState icon={GraduationCap} message="No completed courses yet." />
-          )}
-        </TabsContent>
-
-        <TabsContent value="saved" className="space-y-3 mt-4">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading saved courses...</p>
-          ) : displayedCourses.length > 0 ? (
-            displayedCourses.map((course) => <CourseRow key={course.id} course={course} />)
-          ) : (
-            <EmptyState icon={Bookmark} message="No saved courses yet." />
-          )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
       <Dialog
         open={createModalOpen}

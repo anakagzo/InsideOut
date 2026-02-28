@@ -10,9 +10,10 @@ import { toast } from "sonner";
 interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onAuthenticated?: () => void;
 }
 
-export function AuthModal({ open, onOpenChange }: AuthModalProps) {
+export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProps) {
   const dispatch = useAppDispatch();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [formError, setFormError] = useState<string | null>(null);
@@ -130,6 +131,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       await dispatch(fetchCurrentUser()).unwrap();
       toast.success("Signed in successfully.");
       closeModal();
+      onAuthenticated?.();
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       setFormError(errorMessage);
@@ -170,6 +172,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       await dispatch(fetchCurrentUser()).unwrap();
       toast.success("Account created successfully.");
       closeModal();
+      onAuthenticated?.();
     } catch (error) {
       setFormError(getErrorMessage(error));
     } finally {

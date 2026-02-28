@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, ChevronLeft, ChevronRight, Play, Award } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, ChevronLeft, ChevronRight, Award } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { CourseCard } from "@/components/CourseCard";
+import { CourseCard } from "../components/CourseCard";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchCourses } from "@/store/thunks";
 import heroImage from "@/assets/hero-image.jpg";
@@ -44,30 +43,30 @@ const Index = () => {
       <Header />
 
       {/* Hero */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-hidden min-h-[56vh] sm:min-h-[60vh] md:min-h-[68vh]">
         <div className="absolute inset-0">
           <img
             src={heroImage}
             alt="Students learning online"
-            className="w-full h-full  object-cover "
+            className="w-full h-full object-cover object-center"
           />
           <div className="absolute inset-0 bg-foreground/60" />
         </div>
-        <div className="relative container mx-auto px-4 py-24 md:py-36">
+        <div className="relative container mx-auto px-4 py-16 sm:py-20 md:py-24 lg:py-28 xl:py-32 min-h-[56vh] sm:min-h-[60vh] md:min-h-[68vh] flex items-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="max-w-2xl"
+            className="max-w-3xl text-left"
           >
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary-foreground leading-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary-foreground leading-tight">
               Behaviour Is Communication
               <span className="block text-gradient my-6">Let’s Listen Differently.</span>
             </h1>
-            <p className="mt-6 text-lg text-primary-foreground/80 max-w-lg">
+            <p className="mt-5 sm:mt-6 text-base sm:text-lg text-primary-foreground/80 max-w-xl">
               The Inside Out Programme helps families and professionals understand the emotional world of neurodivergent children, fostering connection, shared responsibility, and meaningful, lasting support.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-7 sm:mt-8 flex flex-wrap gap-3">
               {/*  
               <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 text-base px-8">
                 Explore Courses
@@ -105,24 +104,27 @@ const Index = () => {
             </div>
           </motion.div>
 
-          <div ref={scrollRef} className="flex gap-5 overflow-x-auto hide-scrollbar pb-4">
-            {popularCourses.map((course, i) => (
-              <motion.div
-                key={course.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.4 }}
-              >
-                <CourseCard course={course} />
-              </motion.div>
-            ))}
-            {(listStatus === "idle" || listStatus === "loading") && (
-              <p className="text-muted-foreground py-8">Loading courses...</p>
-            )}
-            {listStatus === "succeeded" && popularCourses.length === 0 && (
-              <p className="text-muted-foreground py-8">No courses available yet.</p>
-            )}
+          <div ref={scrollRef} className="overflow-x-auto hide-scrollbar pb-4 snap-x snap-mandatory">
+            <div className="flex gap-5 w-max xl:min-w-full xl:justify-center">
+              {popularCourses.map((course, i) => (
+                <motion.div
+                  key={course.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1, duration: 0.4 }}
+                  className="snap-start"
+                >
+                  <CourseCard course={course} showPrice={false} />
+                </motion.div>
+              ))}
+              {(listStatus === "idle" || listStatus === "loading") && (
+                <p className="text-muted-foreground py-8">Loading courses...</p>
+              )}
+              {listStatus === "succeeded" && popularCourses.length === 0 && (
+                <p className="text-muted-foreground py-8">No courses available yet.</p>
+              )}
+            </div>
           </div>
 
           <div className="mt-8 text-center">
@@ -136,7 +138,7 @@ const Index = () => {
       {/* About */}
       <section id="about" className="py-20 bg-background">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14 items-center">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -155,10 +157,11 @@ const Index = () => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
+              className="max-w-2xl"
             >
             <h2 className="text-3xl font-bold text-foreground">Meet Your Tutor</h2>
             <p className="mt-4 text-muted-foreground leading-relaxed">
-              I am Freda McWen, a certified professional with over 10 years of experience in education and technology. Having a neurodivergent child personally inspired my passion to support children and families through understanding, connection, and tailored guidance.
+              I am Freda McWen, a certified professional with over 10 years of experience in education and technology. My personal experience inspired my passion to support children and families through understanding, connection, and tailored guidance.
             </p>
             <p className="mt-3 text-muted-foreground leading-relaxed">
               Inside Out Programme was founded to combine the convenience of online learning with the personalised care of one-to-one tutoring. Every student benefits from live Zoom sessions designed to meet their unique learning needs, ensuring support that is both effective and empathetic.

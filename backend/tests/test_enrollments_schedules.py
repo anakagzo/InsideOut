@@ -59,6 +59,22 @@ def test_admin_cannot_create_enrollment(
     assert response.status_code == 403
 
 
+def test_unauthenticated_user_cannot_create_enrollment(
+    client,
+    create_user,
+    create_course,
+):
+    student = create_user()
+    course = create_course()
+
+    response = client.post(
+        "/enrollments/",
+        json={"student_id": student.id, "course_id": course.id},
+    )
+
+    assert response.status_code == 401
+
+
 def test_admin_can_list_enrollments(
     client,
     create_user,

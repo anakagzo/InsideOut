@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { AuthModal } from "@/components/AuthModal";
+import { useAppSelector } from "@/store/hooks";
 import {
   Dialog,
   DialogContent,
@@ -44,7 +46,10 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState<"stripe" | "bank">("stripe");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [resumeCheckoutAfterAuth, setResumeCheckoutAfterAuth] = useState(false);
   const didFinalizeRef = useRef(false);
+  const isAuthenticated = useAppSelector((state) => Boolean(state.users.auth.accessToken));
 
   const {
     createCheckoutStatus,
@@ -57,6 +62,35 @@ const CheckoutPage = () => {
   } = usePayments();
 
   const coursePrice = formatPrice(course?.price);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAuthOpen(true);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !resumeCheckoutAfterAuth) {
+      return;
+    }
+
+    setResumeCheckoutAfterAuth(false);
+
+    const continueCheckout = async () => {
+      try {
+        const checkoutSession = await startStripeCheckout(courseId);
+        window.location.assign(checkoutSession.checkout_url);
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          setCheckoutError(error.message);
+          return;
+        }
+        setCheckoutError("Unable to start Stripe checkout right now.");
+      }
+    };
+
+    void continueCheckout();
+  }, [courseId, isAuthenticated, resumeCheckoutAfterAuth, startStripeCheckout]);
 
   useEffect(() => {
     const status = searchParams.get("status");
@@ -136,6 +170,13 @@ const CheckoutPage = () => {
 
   const handlePayment = async () => {
     setCheckoutError(null);
+
+    if (!isAuthenticated) {
+      setCheckoutError("Please sign in or create an account to continue with enrollment.");
+      setAuthOpen(true);
+      setResumeCheckoutAfterAuth(true);
+      return;
+    }
 
     if (paymentMethod === "bank") {
       setCheckoutError("Bank transfer confirmation flow is not automated yet. Please use Stripe checkout.");
@@ -253,10 +294,10 @@ const CheckoutPage = () => {
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90" 
               size="lg"
               onClick={handlePayment}
-              disabled={isProcessing}
+              disabled={isProcessing || !isAuthenticated}
             >
               <ShieldCheck className="w-4 h-4 mr-2" />
-              {isProcessing ? "Processing..." : `Pay with Stripe £${coursePrice}`}
+              {isProcessing ? "Processing..." : !isAuthenticated ? "Sign in to continue" : `Pay with Stripe £${coursePrice}`}
             </Button>
 
             {effectiveCheckoutError && (
@@ -320,6 +361,10 @@ const CheckoutPage = () => {
           </Button>
         </DialogContent>
       </Dialog>
+      <AuthModal
+        open={authOpen}
+        onOpenChange={setAuthOpen}
+      />
     </div>
   );
 };

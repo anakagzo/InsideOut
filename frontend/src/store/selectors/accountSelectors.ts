@@ -135,15 +135,22 @@ export const selectFilteredUsers = createSelector(
  */
 export const selectUsersStats = createSelector(
   [
-    (state: RootState) => state.users.usersList?.pagination.total ?? 0,
     selectUsersList,
     (state: RootState) => state.enrollments.list?.pagination.total ?? 0,
+    (state: RootState) => state.users.currentUser,
   ],
-  (usersTotal, users, enrollmentsTotal) => ({
-    usersTotal,
-    studentCount: users.filter((user) => user.role === "student").length,
-    enrollmentsTotal,
-  }),
+  (users, enrollmentsTotal, currentUser) => {
+    const studentCount = users.filter((user) => user.role === "student").length;
+    const listedAdminCount = users.filter((user) => user.role === "admin").length;
+    const currentAdminCount = currentUser?.role === "admin" ? 1 : 0;
+    const adminCount = Math.max(listedAdminCount, currentAdminCount);
+
+    return {
+      usersTotal: studentCount + adminCount,
+      studentCount,
+      enrollmentsTotal,
+    };
+  },
 );
 
 const selectSchedulesList = (state: RootState) => state.schedules.list;
