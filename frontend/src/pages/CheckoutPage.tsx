@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { CreditCard, Building2, ShieldCheck, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { CreditCard, ShieldCheck, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AuthModal } from "@/components/AuthModal";
@@ -43,7 +41,6 @@ const CheckoutPage = () => {
     refetch,
   } = useCheckoutCourse(isCourseIdValid ? courseId : null);
 
-  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "bank">("stripe");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -178,11 +175,6 @@ const CheckoutPage = () => {
       return;
     }
 
-    if (paymentMethod === "bank") {
-      setCheckoutError("Bank transfer confirmation flow is not automated yet. Please use Stripe checkout.");
-      return;
-    }
-
     try {
       const checkoutSession = await startStripeCheckout(courseId);
       window.location.assign(checkoutSession.checkout_url);
@@ -223,7 +215,7 @@ const CheckoutPage = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
-      <main className="flex-1 container mx-auto px-4 py-10 max-w-3xl">
+      <main className="flex-1 container mx-auto px-4 py-10 max-w-4xl">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary mb-6">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
@@ -231,64 +223,20 @@ const CheckoutPage = () => {
         <h1 className="text-2xl font-bold text-foreground mb-2">Checkout</h1>
         <p className="text-muted-foreground mb-8">Complete your enrollment for <strong className="text-foreground">{course.title}</strong></p>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
           {/* Payment form */}
-          <div className="md:col-span-3 space-y-6">
+          <div className="md:col-span-7 space-y-6">
             <div>
               <h3 className="font-semibold text-foreground mb-3">Payment Method</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setPaymentMethod("stripe")}
-                  className={`p-4 border rounded-lg flex items-center gap-2 transition-colors ${paymentMethod === "stripe" ? "border-primary bg-accent" : "border-border bg-card"}`}
-                >
-                  <CreditCard className={`w-5 h-5 ${paymentMethod === "stripe" ? "text-primary" : "text-muted-foreground"}`} />
-                  <span className={`text-sm font-medium ${paymentMethod === "stripe" ? "text-primary" : "text-card-foreground"}`}>
-                    Stripe
-                  </span>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod("bank")}
-                  className={`p-4 border rounded-lg flex items-center gap-2 transition-colors ${paymentMethod === "bank" ? "border-primary bg-accent" : "border-border bg-card"}`}
-                >
-                  <Building2 className={`w-5 h-5 ${paymentMethod === "bank" ? "text-primary" : "text-muted-foreground"}`} />
-                  <span className={`text-sm font-medium ${paymentMethod === "bank" ? "text-primary" : "text-card-foreground"}`}>
-                    Bank Transfer
-                  </span>
-                </button>
+              <div className="p-4 border rounded-lg flex items-center gap-2 border-primary bg-accent">
+                <CreditCard className="w-5 h-5 text-primary" />
+                <span className="text-sm font-medium text-primary">Stripe</span>
               </div>
             </div>
 
-            {paymentMethod === "stripe" && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-foreground">Card Number</Label>
-                  <Input placeholder="4242 4242 4242 4242" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label className="text-foreground">Expiry</Label>
-                    <Input placeholder="MM/YY" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-foreground">CVC</Label>
-                    <Input placeholder="123" />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {paymentMethod === "bank" && (
-              <div className="p-4 bg-accent rounded-lg">
-                <p className="text-sm text-accent-foreground">
-                  Please transfer <strong>£{coursePrice}</strong> to the following account and use your email as reference:
-                </p>
-                <div className="mt-3 text-sm text-muted-foreground space-y-1">
-                  <p><strong className="text-foreground">Bank:</strong> InsideOutProgramme Bank</p>
-                  <p><strong className="text-foreground">Sort Code:</strong> 12-34-56</p>
-                  <p><strong className="text-foreground">Account:</strong> 12345678</p>
-                </div>
-              </div>
-            )}
+            <p className="text-sm text-muted-foreground">
+              You’ll be redirected to Stripe’s secure checkout page to enter card details and complete payment.
+            </p>
 
             <Button 
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90" 
@@ -306,7 +254,7 @@ const CheckoutPage = () => {
           </div>
 
           {/* Order summary */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-5">
             <div className="p-5 bg-card border border-border rounded-lg sticky top-24">
               <h3 className="font-semibold text-card-foreground mb-4">Order Summary</h3>
               <div className="flex gap-3 mb-4">
