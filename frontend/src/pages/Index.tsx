@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight, Award } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { CourseCard } from "../components/CourseCard";
+import { CourseCard } from "@/components/CourseCard";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchCourses } from "@/store/thunks";
 import heroImage from "@/assets/hero-image.jpg";

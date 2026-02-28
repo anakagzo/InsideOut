@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { CourseCard } from "../components/CourseCard";
+import { CourseCard } from "@/components/CourseCard";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchCourses } from "@/store/thunks";
 
