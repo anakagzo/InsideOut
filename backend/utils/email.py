@@ -147,7 +147,12 @@ def process_pending_emails():
             email.claimed_at = None
             logger.exception(
                 "Failed to send queued email",
-                extra={"email_id": email.id, "retry_count": email.retry_count},
+                extra={
+                    "email_id": email.id,
+                    "to_email": email.to_email,
+                    "subject": email.subject,
+                    "retry_count": email.retry_count,
+                },
             )
 
             if email.retry_count >= max_retries:

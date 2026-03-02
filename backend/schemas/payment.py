@@ -26,6 +26,16 @@ class OnboardingTokenValidateRequestSchema(Schema):
     course_id = fields.Int(required=True)
 
 
+class OnboardingTokenIssueRequestSchema(Schema):
+    course_id = fields.Int(required=True)
+
+
+class OnboardingTokenIssueResponseSchema(Schema):
+    message = fields.Str(required=True)
+    enrollment_id = fields.Int(required=True)
+    onboarding_token = fields.Str(required=True)
+
+
 class OnboardingTokenValidateResponseSchema(Schema):
     valid = fields.Bool(required=True)
     expired = fields.Bool(required=True)

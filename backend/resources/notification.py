@@ -2,14 +2,16 @@
 
 import logging
 from flask import current_app
+from flask import request
 from flask.views import MethodView
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.exc import SQLAlchemyError
 
 from db import db
-from models import EmailNotificationSettings
-from schemas import NotificationSchema
+from models import EmailNotificationSettings, EmailNotification
+from schemas import NotificationSchema, PaymentNotificationOutcomeListResponseSchema
+from utils.decorators import admin_required
 
 blp = Blueprint(
     "NotificationSettings",
@@ -18,6 +20,7 @@ blp = Blueprint(
     description="Operations on email notification settings"
 )
 logger = logging.getLogger(__name__)
+PAYMENT_NOTIFICATION_SUBJECTS = ("Payment confirmed", "Student payment confirmed")
 
 @blp.route("/")
 class EmailNotificationSettingsUpsert(MethodView):
@@ -89,3 +92,37 @@ class EmailNotificationSettingsGet(MethodView):
             )
 
         return settings
+
+
+@blp.route("/admin/payment-outcomes")
+class PaymentNotificationOutcomes(MethodView):
+    """Read recent payment notification outcomes from the email queue (admin only)."""
+
+    @jwt_required()
+    @admin_required
+    @blp.response(200, PaymentNotificationOutcomeListResponseSchema)
+    def get(self):
+        page = request.args.get("page", 1, type=int)
+        page_size = request.args.get("page_size", 20, type=int)
+        page_size = max(1, min(page_size, 100))
+        status = request.args.get("status", "", type=str).strip().lower()
+
+        query = EmailNotification.query.filter(EmailNotification.subject.in_(PAYMENT_NOTIFICATION_SUBJECTS))
+        if status:
+            query = query.filter(EmailNotification.status == status)
+
+        pagination = query.order_by(EmailNotification.created_at.desc()).paginate(
+            page=page,
+            per_page=page_size,
+            error_out=False,
+        )
+
+        return {
+            "data": pagination.items,
+            "pagination": {
+                "page": pagination.page,
+                "page_size": pagination.per_page,
+                "total": pagination.total,
+                "total_pages": pagination.pages,
+            },
+        }

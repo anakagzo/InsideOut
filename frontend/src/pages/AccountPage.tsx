@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Users, Calendar, Settings, User, LogOut, GraduationCap } from "lucide-react";
+import { BookOpen, Users, Calendar, Settings, User, LogOut, GraduationCap, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Header } from "@/components/Header";
@@ -11,6 +11,7 @@ import { CoursesTab } from "@/components/account/CoursesTab";
 import { EnrollmentsTab } from "@/components/account/EnrollmentsTab";
 import { SchedulesTab } from "@/components/account/SchedulesTab";
 import { UsersTab } from "@/components/account/UsersTab";
+import { PaymentOutcomesTab } from "@/components/account/PaymentOutcomesTab";
 import { ProfilePanel } from "@/components/account/ProfilePanel";
 import { SettingsPanel } from "@/components/account/SettingsPanel";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -199,6 +200,11 @@ const AccountPage = () => {
                 <Users className="w-4 h-4" /> Users
               </TabsTrigger>
             )}
+            {isAdmin && (
+              <TabsTrigger value="payment-emails" className="gap-1">
+                <Mail className="w-4 h-4" /> Payment Emails
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="courses">
@@ -218,6 +224,12 @@ const AccountPage = () => {
           {isAdmin && (
             <TabsContent value="users">
               <UsersTab />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="payment-emails">
+              <PaymentOutcomesTab />
             </TabsContent>
           )}
         </Tabs>

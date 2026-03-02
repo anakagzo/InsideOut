@@ -21,6 +21,8 @@ import type {
   LoginPayload,
   NotificationSettings,
   NotificationSettingsPayload,
+  PaymentNotificationOutcomeListParams,
+  PaymentNotificationOutcomeListResponse,
   RegisterPayload,
   RefreshTokensResponse,
   RefreshEnrollmentZoomLinkResponse,
@@ -35,6 +37,8 @@ import type {
   StripeFinalizeResponse,
   OnboardingTokenValidatePayload,
   OnboardingTokenValidateResponse,
+  OnboardingTokenIssuePayload,
+  OnboardingTokenIssueResponse,
   ChangePasswordPayload,
   TutorReplyPayload,
   User,
@@ -283,6 +287,16 @@ export const notificationSettingsApi = {
     const { data } = await apiClient.get<NotificationSettings>("/notification-settings/me");
     return data;
   },
+
+  /**
+   * List recent payment email outcomes (admin only).
+   */
+  async listPaymentOutcomes(params?: PaymentNotificationOutcomeListParams): Promise<PaymentNotificationOutcomeListResponse> {
+    const { data } = await apiClient.get<PaymentNotificationOutcomeListResponse>("/notification-settings/admin/payment-outcomes", {
+      params,
+    });
+    return data;
+  },
 };
 
 /**
@@ -408,6 +422,14 @@ export const paymentsApi = {
    */
   async finalizeStripeSession(payload: StripeFinalizePayload): Promise<StripeFinalizeResponse> {
     const { data } = await apiClient.post<StripeFinalizeResponse>("/payments/stripe/finalize", payload);
+    return data;
+  },
+
+  /**
+   * Generate a fresh onboarding token for an already-enrolled learner with no schedules.
+   */
+  async createOnboardingToken(payload: OnboardingTokenIssuePayload): Promise<OnboardingTokenIssueResponse> {
+    const { data } = await apiClient.post<OnboardingTokenIssueResponse>("/payments/onboarding/create-token", payload);
     return data;
   },
 

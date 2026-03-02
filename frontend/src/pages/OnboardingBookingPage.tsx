@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { addDays, addMinutes, format, isAfter, parse, startOfDay } from "date-fns";
 import { CalendarCheck, Clock, Video, CheckCircle2, AlertCircle } from "lucide-react";
@@ -22,6 +22,7 @@ import {
   fetchPublicAvailability,
 } from "@/store/thunks";
 import { usePayments } from "@/features/payments/usePayments";
+import { paymentsApi } from "@/api/insideoutApi";
 import defaultCourseImage from "@/assets/course-default-img.jpg";
 
 const ONBOARDING_DURATION_MINUTES = 60;
@@ -66,6 +67,11 @@ const OnboardingBookingPage = () => {
   const existingCourseSchedules = useAppSelector((state) =>
     isCourseIdValid ? state.courses.schedulesByCourseId[courseId] ?? [] : [],
   );
+  const existingCourseSchedulesStatus = useAppSelector((state) =>
+    isCourseIdValid
+      ? state.courses.requests.schedulesByCourseId[courseId]?.status ?? "idle"
+      : "idle",
+  );
   const createScheduleStatus = useAppSelector((state) => state.schedules.requests.createMany.status);
   const {
     tokenValidationStatus,
@@ -80,6 +86,9 @@ const OnboardingBookingPage = () => {
   const [isBooked, setIsBooked] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookedRange, setBookedRange] = useState<{ start: string; end: string } | null>(null);
+  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [tokenRefreshError, setTokenRefreshError] = useState<string | null>(null);
+  const refreshAttemptRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isCourseIdValid) {
@@ -106,6 +115,65 @@ const OnboardingBookingPage = () => {
   const validatedEnrollmentId = tokenValidationResponse?.enrollment_id ?? null;
   const isTokenValid = tokenValidationResponse?.valid ?? false;
   const isTokenExpired = !token || !isCourseIdValid ? true : (tokenValidationResponse?.expired ?? true);
+
+  useEffect(() => {
+    if (!token || !isCourseIdValid) {
+      return;
+    }
+
+    if (effectiveTokenValidationStatus !== "succeeded") {
+      return;
+    }
+
+    if (!isTokenExpired || isTokenValid) {
+      return;
+    }
+
+    if (existingCourseSchedulesStatus !== "succeeded") {
+      return;
+    }
+
+    if (existingCourseSchedules.length > 0) {
+      setTokenRefreshError("You have already booked your onboarding meeting.");
+      return;
+    }
+
+    const refreshKey = `${courseId}:${token}`;
+    if (refreshAttemptRef.current === refreshKey) {
+      return;
+    }
+    refreshAttemptRef.current = refreshKey;
+
+    const refreshBookingToken = async () => {
+      setIsRefreshingToken(true);
+      setTokenRefreshError(null);
+
+      try {
+        const response = await paymentsApi.createOnboardingToken({ course_id: courseId });
+        navigate(`/onboarding/${courseId}/${response.onboarding_token}`, { replace: true });
+      } catch (error: unknown) {
+        if (error instanceof Error && error.message) {
+          setTokenRefreshError(error.message);
+        } else {
+          setTokenRefreshError("Unable to refresh booking link right now.");
+        }
+      } finally {
+        setIsRefreshingToken(false);
+      }
+    };
+
+    void refreshBookingToken();
+  }, [
+    courseId,
+    effectiveTokenValidationStatus,
+    existingCourseSchedules.length,
+    existingCourseSchedulesStatus,
+    isCourseIdValid,
+    isTokenExpired,
+    isTokenValid,
+    navigate,
+    token,
+  ]);
 
   const availabilityDays = onboardingAvailability?.availability ?? [];
   const unavailableDateSet = useMemo(
@@ -251,6 +319,13 @@ const OnboardingBookingPage = () => {
     }
 
     try {
+      const latestSchedules = await dispatch(fetchCourseSchedules(courseId)).unwrap();
+      if (latestSchedules.length > 0) {
+        setBookingError("Your onboarding meeting has already been booked.");
+        setIsConfirmOpen(false);
+        return;
+      }
+
       await dispatch(
         createSchedules([
           {
@@ -350,14 +425,21 @@ const OnboardingBookingPage = () => {
   }
 
   if (isExpired) {
+    const hasAlreadyBooked = existingCourseSchedules.length > 0;
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="pt-6 text-center">
             <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Link Expired</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              {hasAlreadyBooked ? "Onboarding Already Booked" : "Link Expired"}
+            </h2>
             <p className="text-muted-foreground mb-4">
-              {tokenValidationMessage ?? "This booking link has expired or has already been used."}
+              {hasAlreadyBooked
+                ? "You have already booked your first onboarding meeting."
+                : isRefreshingToken
+                  ? "Refreshing your booking link. Please wait..."
+                  : tokenRefreshError ?? tokenValidationMessage ?? "This booking link has expired or has already been used."}
             </p>
             <Button onClick={() => navigate("/account")}>Go to Account</Button>
           </CardContent>

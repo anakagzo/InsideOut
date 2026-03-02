@@ -9,6 +9,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { StarRating } from "@/components/StarRating";
 import { AuthModal } from "@/components/AuthModal";
+import { paymentsApi } from "@/api/insideoutApi";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import defaultCourseImage from "@/assets/course-default-img.jpg";
 import {
@@ -39,6 +40,7 @@ const CourseDetailPage = () => {
   const [isDetailDescriptionExpanded, setIsDetailDescriptionExpanded] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingAuthAction, setPendingAuthAction] = useState<"enroll" | "save" | null>(null);
+  const [isBookingOnboarding, setIsBookingOnboarding] = useState(false);
 
   const course = useAppSelector((state) =>
     isCourseIdValid ? state.courses.byId[courseId] : undefined,
@@ -119,15 +121,21 @@ const CourseDetailPage = () => {
     }));
   }, [course?.reviews, fullReviews]);
 
-  const hasEligibleEnrollment = useMemo(
+  const enrolledEnrollment = useMemo(
     () =>
-      enrollments.some(
-        (enrollment) =>
-          enrollment.course_id === courseId &&
-          (enrollment.status === "active" || enrollment.status === "completed"),
-      ),
+      enrollments.find(
+        (enrollment) => {
+          const enrollmentCourseId = enrollment.course_id ?? enrollment.course?.id;
+          return (
+            Number(enrollmentCourseId) === courseId &&
+            (enrollment.status === "active" || enrollment.status === "completed")
+          );
+        },
+      ) ?? null,
     [courseId, enrollments],
   );
+  const hasEligibleEnrollment = Boolean(enrolledEnrollment);
+  const isAlreadyEnrolled = hasEligibleEnrollment;
   const totalReviewCount = fullReviews.length || previewReviews.length;
   const isCourseSaved = useMemo(
     () => savedCourses.some((savedCourse) => savedCourse.id === courseId),
@@ -188,6 +196,29 @@ const CourseDetailPage = () => {
       }
     } catch {
       toast.error(isCourseSaved ? "Unable to remove saved course right now." : "Unable to save course right now.");
+    }
+  };
+
+  const handleBookOnboardingMeeting = async () => {
+    if (!isAuthenticated) {
+      setPendingAuthAction("enroll");
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    if (!isAlreadyEnrolled) {
+      navigate(`/checkout/${course.id}`);
+      return;
+    }
+
+    setIsBookingOnboarding(true);
+    try {
+      const response = await paymentsApi.createOnboardingToken({ course_id: course.id });
+      navigate(`/onboarding/${course.id}/${response.onboarding_token}`);
+    } catch {
+      toast.error("Unable to generate onboarding booking link right now.");
+    } finally {
+      setIsBookingOnboarding(false);
     }
   };
 
@@ -377,13 +408,28 @@ const CourseDetailPage = () => {
                       </div>
                     )}
                     {schedulesStatus !== "loading" && schedules.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-16 text-center">
-                      <Calendar className="w-12 h-12 text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">You are not enrolled for this course — no schedule.</p>
-                      <Button className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleEnrollNow}>
-                        Enroll to See Schedule
-                      </Button>
-                    </div>
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <Calendar className="w-12 h-12 text-muted-foreground mb-4" />
+                        {isAlreadyEnrolled ? (
+                          <>
+                            <p className="text-muted-foreground">No schedules yet.</p>
+                            <Button
+                              className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
+                              onClick={handleBookOnboardingMeeting}
+                              disabled={isBookingOnboarding}
+                            >
+                              {isBookingOnboarding ? "Preparing booking..." : "Book Onboarding Meeting"}
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-muted-foreground">You are not enrolled for this course — no schedule.</p>
+                            <Button className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleEnrollNow}>
+                              Enroll to See Schedule
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     )}
                   </TabsContent>
                 )}
@@ -515,7 +561,7 @@ const CourseDetailPage = () => {
                   </div>
                 </div>
 
-                {!isAdmin && (
+                {!isAdmin && !isAlreadyEnrolled && (
                   <div className="flex flex-col sm:flex-row xl:flex-col gap-2 pt-2">
                     <Button size="lg" onClick={handleEnrollNow} className="bg-primary text-primary-foreground hover:bg-primary/90 w-full">
                       Enroll Now

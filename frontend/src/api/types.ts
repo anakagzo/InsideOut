@@ -51,6 +51,16 @@ export interface OnboardingTokenValidateResponse {
   enrollment_id: number | null;
 }
 
+export interface OnboardingTokenIssuePayload {
+  course_id: number;
+}
+
+export interface OnboardingTokenIssueResponse {
+  message: string;
+  enrollment_id: number;
+  onboarding_token: string;
+}
+
 export interface AuthTokens {
   access_token: string;
   refresh_token: string;
@@ -172,6 +182,11 @@ export interface Enrollment {
   status: "active" | "completed";
   start_date: string;
   end_date: string | null;
+  course?: {
+    id: number;
+    title?: string;
+    price?: string;
+  };
 }
 
 export type EnrollmentListResponse = PaginatedResponse<Enrollment>;
@@ -254,6 +269,25 @@ export interface NotificationSettingsPayload {
   notify_on_meeting_reminder?: boolean;
   meeting_reminder_lead_minutes?: number;
 }
+
+export interface PaymentNotificationOutcome {
+  id: number;
+  to_email: string;
+  subject: string;
+  status: string;
+  retry_count: number;
+  last_error: string | null;
+  created_at: string;
+  sent_at: string | null;
+}
+
+export interface PaymentNotificationOutcomeListParams {
+  page?: number;
+  page_size?: number;
+  status?: string;
+}
+
+export type PaymentNotificationOutcomeListResponse = PaginatedResponse<PaymentNotificationOutcome>;
 
 export interface AvailabilityTimeSlot {
   id?: number;

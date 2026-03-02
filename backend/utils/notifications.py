@@ -90,17 +90,25 @@ def _meeting_reminder_lead_minutes(user: User) -> int:
     return max(min_lead, min(numeric, max_lead))
 
 
-def notify_payment_confirmed(student: User, course_title: str) -> int:
+def notify_payment_confirmed(student: User, course_title: str, onboarding_booking_url: str | None = None) -> int:
     recipients = _student_and_admin_recipients(student)
     queued_count = 0
+    outcome_counts = {"queued": 0, "skipped": 0, "error": 0}
 
     for recipient in recipients:
+        recipient_role = "student" if recipient.id == student.id else "admin"
         if recipient.id == student.id:
             subject = "Payment confirmed"
+            onboarding_call_to_action = (
+                f"<p><a href=\"{onboarding_booking_url}\">Book your onboarding meeting now</a></p>"
+                if onboarding_booking_url
+                else ""
+            )
             body = (
                 f"<p>Hi {recipient.first_name},</p>"
                 f"<p>Your payment for <strong>{course_title}</strong> was confirmed successfully.</p>"
                 "<p>You can now continue with onboarding and schedule your first session.</p>"
+                f"{onboarding_call_to_action}"
             )
         else:
             subject = "Student payment confirmed"
@@ -110,8 +118,34 @@ def notify_payment_confirmed(student: User, course_title: str) -> int:
                 f"<p><strong>Student:</strong> {student.first_name} {student.last_name}</p>"
             )
 
-        if _queue_user_notification(recipient, "notify_on_new_payment", subject, body):
+        outcome = _queue_user_notification_outcome(recipient, "notify_on_new_payment", subject, body)
+        if outcome == "queued":
             queued_count += 1
+
+        outcome_counts[outcome] = outcome_counts.get(outcome, 0) + 1
+        logger.info(
+            "Payment notification outcome",
+            extra={
+                "student_id": student.id,
+                "course_title": course_title,
+                "recipient_id": recipient.id,
+                "recipient_email": recipient.email,
+                "recipient_role": recipient_role,
+                "outcome": outcome,
+            },
+        )
+
+    logger.info(
+        "Payment notification dispatch summary",
+        extra={
+            "student_id": student.id,
+            "course_title": course_title,
+            "recipient_count": len(recipients),
+            "queued_count": queued_count,
+            "skipped_count": outcome_counts.get("skipped", 0),
+            "error_count": outcome_counts.get("error", 0),
+        },
+    )
 
     return queued_count
 

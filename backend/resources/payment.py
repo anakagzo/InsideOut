@@ -26,6 +26,8 @@ from schemas import (
 	StripeCheckoutSessionResponseSchema,
 	StripeFinalizeRequestSchema,
 	StripeFinalizeResponseSchema,
+	OnboardingTokenIssueRequestSchema,
+	OnboardingTokenIssueResponseSchema,
 	OnboardingTokenValidateRequestSchema,
 	OnboardingTokenValidateResponseSchema,
 )
@@ -125,17 +127,24 @@ def _finalize_paid_checkout_session(session, expected_user_id=None):
 	if not enrollment:
 		abort(500, message="Unable to create enrollment.")
 
-	queued_count = notify_payment_confirmed(user, course.title)
-	logger.info(
-		"Payment notifications queued",
-		extra={"user_id": user.id, "course_id": course.id, "queued_count": queued_count},
-	)
-
 	onboarding_token = _create_onboarding_token(
 		user_id=session_user_id,
 		course_id=course.id,
 		enrollment_id=enrollment.id,
 		stripe_session_id=_session_value(session, "id", ""),
+	)
+
+	frontend_base_url = current_app.config.get("FRONTEND_BASE_URL", "http://localhost:8080")
+	onboarding_booking_url = f"{frontend_base_url}/onboarding/{course.id}/{onboarding_token}"
+
+	queued_count = notify_payment_confirmed(
+		user,
+		course.title,
+		onboarding_booking_url=onboarding_booking_url,
+	)
+	logger.info(
+		"Payment notifications queued",
+		extra={"user_id": user.id, "course_id": course.id, "queued_count": queued_count},
 	)
 
 	return enrollment, onboarding_token
@@ -157,6 +166,25 @@ def _create_onboarding_token(user_id, course_id, enrollment_id, stripe_session_i
 		"stripe_session_id": stripe_session_id,
 	}
 	return serializer.dumps(payload)
+
+
+def _create_onboarding_token_for_existing_enrollment(user_id, course_id):
+	enrollment = Enrollment.query.filter_by(student_id=user_id, course_id=course_id).first()
+	if not enrollment or enrollment.status not in {"active", "completed"}:
+		abort(404, message="Enrollment not found for this course.")
+
+	has_existing_schedule = Schedule.query.filter_by(enrollment_id=enrollment.id).first() is not None
+	if has_existing_schedule:
+		abort(409, message="Onboarding meeting is already booked for this enrollment.")
+
+	onboarding_token = _create_onboarding_token(
+		user_id=user_id,
+		course_id=course_id,
+		enrollment_id=enrollment.id,
+		stripe_session_id="manual-onboarding-token",
+	)
+
+	return enrollment, onboarding_token
 
 
 @blp.route("/stripe/create-checkout-session")
@@ -351,4 +379,29 @@ class OnboardingTokenValidate(MethodView):
 			"expired": False,
 			"message": "Booking link is valid.",
 			"enrollment_id": enrollment.id,
+		}
+
+
+@blp.route("/onboarding/create-token")
+class OnboardingTokenCreate(MethodView):
+	"""Issue a fresh onboarding booking token for enrolled students without schedules."""
+
+	@jwt_required()
+	@student_required
+	@blp.arguments(OnboardingTokenIssueRequestSchema)
+	@blp.response(200, OnboardingTokenIssueResponseSchema)
+	def post(self, data):
+		user_id = int(get_jwt_identity())
+		course_id = int(data["course_id"])
+		_get_course_or_404(course_id)
+
+		enrollment, onboarding_token = _create_onboarding_token_for_existing_enrollment(
+			user_id=user_id,
+			course_id=course_id,
+		)
+
+		return {
+			"message": "Onboarding booking token generated.",
+			"enrollment_id": enrollment.id,
+			"onboarding_token": onboarding_token,
 		}

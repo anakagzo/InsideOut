@@ -196,10 +196,9 @@ const CheckoutPage = () => {
     navigate(`/onboarding/${id}/${onboardingToken}`);
   };
 
-  const handleCloseSuccessModal = (open: boolean) => {
-    setShowSuccessModal(open);
-    if (!open) {
-      navigate(`/checkout/${id}`, { replace: true });
+  const handleSuccessModalOpenChange = (open: boolean) => {
+    if (open) {
+      setShowSuccessModal(true);
     }
   };
 
@@ -286,8 +285,12 @@ const CheckoutPage = () => {
       <Footer />
 
       {/* Success Modal */}
-      <Dialog open={showSuccessModal} onOpenChange={handleCloseSuccessModal}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showSuccessModal} onOpenChange={handleSuccessModalOpenChange}>
+        <DialogContent
+          className="sm:max-w-md [&>button]:hidden"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
           <DialogHeader className="text-center">
             <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-10 h-10 text-success" />

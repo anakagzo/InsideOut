@@ -291,6 +291,10 @@ def test_finalize_payment_queues_email_when_enabled(
     assert user.email in recipients
     assert admin.email in recipients
 
+    student_emails = [item for item in queued if item[0] == user.email]
+    assert student_emails
+    assert "Book your onboarding meeting now" in student_emails[0][2]
+
 
 def test_finalize_payment_skips_email_when_disabled(
     client,
@@ -340,3 +344,106 @@ def test_finalize_payment_skips_email_when_disabled(
     recipients = {item[0] for item in queued}
     assert user.email not in recipients
     assert admin.email in recipients
+
+
+def test_create_onboarding_token_for_enrolled_user_without_schedule(
+    client,
+    app,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+):
+    user = create_user(role="student", email="onboarding-token-student@example.com")
+    course = create_course(title="Onboarding Token Course", price="120.00")
+    enrollment = create_enrollment(student_id=user.id, course_id=course.id, status="active")
+
+    app.config.update(
+        ONBOARDING_TOKEN_SECRET="token-secret",
+        ONBOARDING_TOKEN_TTL_SECONDS=3600,
+    )
+
+    create_response = client.post(
+        "/payments/onboarding/create-token",
+        json={"course_id": course.id},
+        headers=auth_headers(user),
+    )
+
+    assert create_response.status_code == 200
+    create_payload = create_response.get_json()
+    assert create_payload["enrollment_id"] == enrollment.id
+    assert create_payload["onboarding_token"]
+
+    validate_response = client.post(
+        "/payments/onboarding/validate-token",
+        json={
+            "token": create_payload["onboarding_token"],
+            "course_id": course.id,
+        },
+        headers=auth_headers(user),
+    )
+
+    assert validate_response.status_code == 200
+    validate_payload = validate_response.get_json()
+    assert validate_payload["valid"] is True
+    assert validate_payload["expired"] is False
+    assert validate_payload["enrollment_id"] == enrollment.id
+
+
+def test_create_onboarding_token_rejects_when_schedule_exists(
+    client,
+    app,
+    create_user,
+    create_course,
+    create_enrollment,
+    create_schedule,
+    auth_headers,
+):
+    user = create_user(role="student", email="onboarding-has-schedule@example.com")
+    course = create_course(title="Booked Onboarding Course", price="95.00")
+    enrollment = create_enrollment(student_id=user.id, course_id=course.id, status="active")
+    create_schedule(enrollment_id=enrollment.id)
+
+    app.config.update(ONBOARDING_TOKEN_SECRET="token-secret")
+
+    response = client.post(
+        "/payments/onboarding/create-token",
+        json={"course_id": course.id},
+        headers=auth_headers(user),
+    )
+
+    assert response.status_code == 409
+
+
+def test_create_onboarding_token_requires_authentication(client, app, create_course):
+    course = create_course(title="Token Auth Course", price="99.00")
+
+    app.config.update(ONBOARDING_TOKEN_SECRET="token-secret")
+
+    response = client.post(
+        "/payments/onboarding/create-token",
+        json={"course_id": course.id},
+    )
+
+    assert response.status_code == 401
+
+
+def test_create_onboarding_token_requires_existing_enrollment(
+    client,
+    app,
+    create_user,
+    create_course,
+    auth_headers,
+):
+    user = create_user(role="student", email="onboarding-no-enrollment@example.com")
+    course = create_course(title="No Enrollment Course", price="60.00")
+
+    app.config.update(ONBOARDING_TOKEN_SECRET="token-secret")
+
+    response = client.post(
+        "/payments/onboarding/create-token",
+        json={"course_id": course.id},
+        headers=auth_headers(user),
+    )
+
+    assert response.status_code == 404
