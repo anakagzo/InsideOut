@@ -11,6 +11,7 @@ import CheckoutPage from "@/pages/CheckoutPage";
 import OnboardingBookingPage from "@/pages/OnboardingBookingPage";
 import AccountPage from "@/pages/AccountPage";
 import NotFound from "@/pages/NotFound";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -25,9 +26,13 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/course/:id" element={<CourseDetailPage />} />
-          <Route path="/checkout/:id" element={<CheckoutPage />} />
-          <Route path="/onboarding/:id/:token" element={<OnboardingBookingPage />} />
-          <Route path="/account" element={<AccountPage />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/account" element={<AccountPage />} />
+          </Route>
+          <Route element={<ProtectedRoute allowedRoles={["student"]} />}>
+            <Route path="/checkout/:id" element={<CheckoutPage />} />
+            <Route path="/onboarding/:id/:token" element={<OnboardingBookingPage />} />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

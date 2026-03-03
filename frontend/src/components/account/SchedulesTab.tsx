@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import type { Schedule } from "@/api/types";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
+  fetchEnrollments,
   fetchEnrollmentGroupedSchedules,
   fetchSchedules,
   refreshEnrollmentZoomLink,
@@ -36,15 +37,47 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
   const schedulesStatus = useAppSelector((state) => state.schedules.requests.list.status);
   const changeRequestStatus = useAppSelector((state) => state.schedules.requests.requestChange.status);
   const groupedStatus = useAppSelector((state) => state.enrollments.requests.groupedSchedules.status);
+  const enrollmentsById = useAppSelector((state) => state.enrollments.byId);
   const schedules = useAppSelector((state) => selectAccountScheduleEvents(state, isAdmin));
 
   useEffect(() => {
+    dispatch(fetchEnrollments({ page: 1, page_size: 100 }));
+
     if (isAdmin) {
       dispatch(fetchEnrollmentGroupedSchedules());
       return;
     }
     dispatch(fetchSchedules());
   }, [dispatch, isAdmin, currentUserId]);
+
+  const resolveCourseTitle = (schedule: Schedule): string => {
+    const scheduleWithCourse = schedule as Schedule & {
+      course_title?: string;
+      enrollment?: {
+        course?: {
+          title?: string;
+        };
+      };
+    };
+
+    const inlineCourseTitle = scheduleWithCourse.course_title?.trim();
+    if (inlineCourseTitle) {
+      return inlineCourseTitle;
+    }
+
+    const nestedCourseTitle = scheduleWithCourse.enrollment?.course?.title?.trim();
+    if (nestedCourseTitle) {
+      return nestedCourseTitle;
+    }
+
+    const enrollment = enrollmentsById[schedule.enrollment_id];
+    const enrollmentCourseTitle = enrollment?.course?.title?.trim();
+    if (enrollmentCourseTitle) {
+      return enrollmentCourseTitle;
+    }
+
+    return enrollment?.course_id ? `Course #${enrollment.course_id}` : "Course unavailable";
+  };
 
   const scheduledDates = schedules.map((s) => parseISO(s.date));
 
@@ -175,7 +208,10 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
                   <div className="flex items-start gap-3">
                     <BookOpen className="w-5 h-5 text-primary mt-0.5" />
                     <div>
-                      <p className="font-medium text-card-foreground">Enrollment #{event.enrollment_id}</p>
+                      <p className="font-medium text-card-foreground">{resolveCourseTitle(event)}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Enrollment #<span className="text-card-foreground">{event.enrollment_id}</span>
+                      </p>
                     </div>
                   </div>
 
