@@ -18,23 +18,40 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+const PAYMENT_OUTCOMES_PAGE_STEP = 20;
+
 export const PaymentOutcomesTab = () => {
   const [rows, setRows] = useState<PaymentNotificationOutcome[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  const load = async () => {
+  const loadedCount = rows.length;
+  const hasMore = loadedCount < total;
+
+  const load = async (page: number, append: boolean) => {
     setIsLoading(true);
     setError(null);
 
     try {
       const response = await notificationSettingsApi.listPaymentOutcomes({
-        page: 1,
-        page_size: 20,
+        page,
+        page_size: PAYMENT_OUTCOMES_PAGE_STEP,
         status: statusFilter === "all" ? undefined : statusFilter,
       });
-      setRows(response.data);
+      setRows((previous) => {
+        if (!append) {
+          return response.data;
+        }
+
+        const byId = new Map<number, PaymentNotificationOutcome>();
+        previous.forEach((item) => byId.set(item.id, item));
+        response.data.forEach((item) => byId.set(item.id, item));
+        return [...byId.values()];
+      });
+      setTotal(response.pagination.total);
     } catch {
       setError("Unable to load payment email outcomes right now.");
     } finally {
@@ -43,10 +60,10 @@ export const PaymentOutcomesTab = () => {
   };
 
   useEffect(() => {
-    void load();
-  }, [statusFilter]);
+    void load(currentPage, currentPage > 1);
+  }, [currentPage, statusFilter]);
 
-  if (isLoading) {
+  if (isLoading && rows.length === 0) {
     return <p className="text-muted-foreground">Loading payment email outcomes...</p>;
   }
 
@@ -54,7 +71,7 @@ export const PaymentOutcomesTab = () => {
     return (
       <div className="space-y-3">
         <p className="text-sm text-destructive">{error}</p>
-        <Button variant="outline" onClick={load}>Retry</Button>
+        <Button variant="outline" onClick={() => void load(currentPage, currentPage > 1)}>Retry</Button>
       </div>
     );
   }
@@ -63,7 +80,13 @@ export const PaymentOutcomesTab = () => {
     return (
       <div className="space-y-3">
         <div className="w-full sm:w-44">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value);
+              setCurrentPage(1);
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Filter status" />
             </SelectTrigger>
@@ -85,7 +108,13 @@ export const PaymentOutcomesTab = () => {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
         <div className="w-full sm:w-44">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value);
+              setCurrentPage(1);
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Filter status" />
             </SelectTrigger>
@@ -98,7 +127,16 @@ export const PaymentOutcomesTab = () => {
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" size="sm" onClick={load}>Refresh</Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setCurrentPage(1);
+            void load(1, false);
+          }}
+        >
+          Refresh
+        </Button>
       </div>
       <div className="rounded-lg border bg-card overflow-x-auto">
         <Table>
@@ -124,6 +162,17 @@ export const PaymentOutcomesTab = () => {
           </TableBody>
         </Table>
       </div>
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setCurrentPage((current) => current + 1)}
+            disabled={isLoading}
+          >
+            {isLoading ? "Loading..." : `Load More (${loadedCount}/${total})`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

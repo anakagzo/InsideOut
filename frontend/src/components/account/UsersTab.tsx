@@ -1,20 +1,32 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Users as UsersIcon, GraduationCap, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchEnrollments, fetchUsers } from "@/store/thunks";
 import { selectFilteredUsers, selectUsersStats } from "@/store/selectors/accountSelectors";
 
+const USERS_PAGE_STEP = 50;
+
 export const UsersTab = () => {
   const dispatch = useAppDispatch();
   const [searchQuery, setSearchQuery] = useState("");
+  const [usersPage, setUsersPage] = useState(1);
 
   const usersStatus = useAppSelector((state) => state.users.requests.fetchUsers.status);
+  const usersList = useAppSelector((state) => state.users.usersList);
   const filteredUsers = useAppSelector((state) => selectFilteredUsers(state, searchQuery));
   const stats = useAppSelector(selectUsersStats);
 
+  const loadedCount = usersList?.data.length ?? 0;
+  const totalCount = usersList?.pagination.total ?? loadedCount;
+  const hasMoreUsers = loadedCount < totalCount;
+
   useEffect(() => {
-    dispatch(fetchUsers({ page: 1, page_size: 100 }));
+    dispatch(fetchUsers({ page: usersPage, page_size: USERS_PAGE_STEP, append: usersPage > 1 }));
+  }, [dispatch, usersPage]);
+
+  useEffect(() => {
     dispatch(fetchEnrollments({ page: 1, page_size: 100 }));
   }, [dispatch]);
 
@@ -106,6 +118,18 @@ export const UsersTab = () => {
           <div className="text-center py-12 text-muted-foreground">
             <UsersIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
             <p>No users found.</p>
+          </div>
+        )}
+
+        {searchQuery.trim().length === 0 && hasMoreUsers && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setUsersPage((current) => current + 1)}
+              disabled={usersStatus === "loading"}
+            >
+              {usersStatus === "loading" ? "Loading..." : `Load More (${loadedCount}/${totalCount})`}
+            </Button>
           </div>
         )}
       </div>

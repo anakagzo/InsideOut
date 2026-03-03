@@ -119,6 +119,12 @@ export interface CourseReviewSummary {
   comment: string | null;
   tutor_reply: string | null;
   created_at: string;
+  author?: {
+    id: number;
+    initials: string;
+    first_name?: string;
+    last_name?: string;
+  };
 }
 
 export interface CourseSummary {
@@ -247,6 +253,12 @@ export interface Review {
   comment: string | null;
   tutor_reply: string | null;
   created_at: string;
+  author?: {
+    id: number;
+    initials: string;
+    first_name?: string;
+    last_name?: string;
+  };
 }
 
 export interface CreateReviewPayload {

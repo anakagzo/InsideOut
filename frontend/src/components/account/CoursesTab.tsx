@@ -34,12 +34,14 @@ interface CoursesTabProps {
 
 const DEFAULT_COURSE_IMAGE = defaultCourseImage;
 const DESCRIPTION_PREVIEW_CHAR_LIMIT = 120;
+const COURSES_PAGE_STEP = 50;
 
 export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "enrolled" | "completed" | "saved">("all");
+  const [coursesPage, setCoursesPage] = useState(1);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -64,25 +66,33 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
   });
 
   const displayedCourses = useAppSelector((state) => selectCoursesForAccountTab(state, activeTab));
+  const coursesListResponse = useAppSelector((state) => state.courses.list);
+  const savedCoursesResponse = useAppSelector((state) => state.courses.saved);
   const isLoading = useAppSelector((state) => selectCoursesLoadingForTab(state, activeTab));
   const activeStatusBadge = useAppSelector((state) => selectStatusBadgeByCoursesTab(state, activeTab));
   const mutationMessage = useAppSelector((state) => state.courses.lastMutationMessage);
   const unsaveStatus = useAppSelector((state) => state.courses.requests.unsave.status);
 
+  const currentResponse = activeTab === "saved" ? savedCoursesResponse : coursesListResponse;
+  const loadedCount = currentResponse?.data.length ?? 0;
+  const totalCount = currentResponse?.pagination.total ?? loadedCount;
+  const hasMoreCourses = loadedCount < totalCount;
+
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (activeTab === "saved") {
-        dispatch(fetchSavedCourses({ page: 1, page_size: 50 }));
+        dispatch(fetchSavedCourses({ page: coursesPage, page_size: COURSES_PAGE_STEP, append: coursesPage > 1 }));
         return;
       }
 
       if (!isAdmin && (activeTab === "enrolled" || activeTab === "completed")) {
         dispatch(
           fetchCourses({
-            page: 1,
-            page_size: 50,
+            page: coursesPage,
+            page_size: COURSES_PAGE_STEP,
             search: searchQuery || undefined,
             type: activeTab === "enrolled" ? "active" : "completed",
+            append: coursesPage > 1,
           }),
         );
         return;
@@ -90,15 +100,20 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
 
       dispatch(
         fetchCourses({
-          page: 1,
-          page_size: 50,
+          page: coursesPage,
+          page_size: COURSES_PAGE_STEP,
           search: searchQuery || undefined,
+          append: coursesPage > 1,
         }),
       );
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [activeTab, dispatch, isAdmin, searchQuery]);
+  }, [activeTab, coursesPage, dispatch, isAdmin, searchQuery]);
+
+  useEffect(() => {
+    setCoursesPage(1);
+  }, [activeTab, searchQuery, isAdmin]);
 
   useEffect(() => {
     if (mutationMessage) {
@@ -384,7 +399,20 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading courses...</p>
             ) : displayedCourses.length > 0 ? (
-              displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)
+              <>
+                {displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)}
+                {hasMoreCourses && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCoursesPage((current) => current + 1)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Loading..." : `Load More (${loadedCount}/${totalCount})`}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <EmptyState icon={BookOpen} message="No courses found." />
             )}
@@ -394,7 +422,20 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading enrolled courses...</p>
             ) : displayedCourses.length > 0 ? (
-              displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)
+              <>
+                {displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)}
+                {hasMoreCourses && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCoursesPage((current) => current + 1)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Loading..." : `Load More (${loadedCount}/${totalCount})`}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <EmptyState icon={GraduationCap} message="No enrolled courses yet." />
             )}
@@ -404,7 +445,20 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading completed courses...</p>
             ) : displayedCourses.length > 0 ? (
-              displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)
+              <>
+                {displayedCourses.map((course) => <CourseRow key={course.id} course={course} showStatus />)}
+                {hasMoreCourses && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCoursesPage((current) => current + 1)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Loading..." : `Load More (${loadedCount}/${totalCount})`}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <EmptyState icon={GraduationCap} message="No completed courses yet." />
             )}
@@ -414,7 +468,20 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading saved courses...</p>
             ) : displayedCourses.length > 0 ? (
-              displayedCourses.map((course) => <CourseRow key={course.id} course={course} showSavedAction />)
+              <>
+                {displayedCourses.map((course) => <CourseRow key={course.id} course={course} showSavedAction />)}
+                {hasMoreCourses && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setCoursesPage((current) => current + 1)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Loading..." : `Load More (${loadedCount}/${totalCount})`}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <EmptyState icon={Bookmark} message="No saved courses yet." />
             )}
@@ -425,7 +492,20 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading courses...</p>
           ) : displayedCourses.length > 0 ? (
-            displayedCourses.map((course) => <CourseRow key={course.id} course={course} />)
+            <>
+              {displayedCourses.map((course) => <CourseRow key={course.id} course={course} />)}
+              {hasMoreCourses && (
+                <div className="flex justify-center pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCoursesPage((current) => current + 1)}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Loading..." : `Load More (${loadedCount}/${totalCount})`}
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
             <EmptyState icon={BookOpen} message="No courses found." />
           )}
@@ -515,7 +595,8 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
                   setCreateModalOpen(false);
                   setCreateForm({ title: "", description: "", price: "" });
                   resetCreateMediaState();
-                  dispatch(fetchCourses({ page: 1, page_size: 50, search: searchQuery || undefined }));
+                  setCoursesPage(1);
+                  dispatch(fetchCourses({ page: 1, page_size: COURSES_PAGE_STEP, search: searchQuery || undefined }));
                 } catch {
                   toast.error("Failed to create course.");
                 }
@@ -608,7 +689,8 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
 
                   setEditModalOpen(false);
                   resetEditMediaState();
-                  dispatch(fetchCourses({ page: 1, page_size: 50, search: searchQuery || undefined }));
+                  setCoursesPage(1);
+                  dispatch(fetchCourses({ page: 1, page_size: COURSES_PAGE_STEP, search: searchQuery || undefined }));
                 } catch {
                   toast.error("Failed to update course.");
                 }
@@ -642,7 +724,8 @@ export const CoursesTab = ({ isAdmin, currentUserId }: CoursesTabProps) => {
                 try {
                   await dispatch(deleteCourse(selectedCourse.id)).unwrap();
                   setDeleteModalOpen(false);
-                  dispatch(fetchCourses({ page: 1, page_size: 50, search: searchQuery || undefined }));
+                  setCoursesPage(1);
+                  dispatch(fetchCourses({ page: 1, page_size: COURSES_PAGE_STEP, search: searchQuery || undefined }));
                 } catch {
                   toast.error("Failed to delete course.");
                 }

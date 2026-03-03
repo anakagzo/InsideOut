@@ -5,11 +5,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { StarRating } from "@/components/StarRating";
 import { AuthModal } from "@/components/AuthModal";
 import { paymentsApi } from "@/api/insideoutApi";
+import type { Review } from "@/api/types";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import defaultCourseImage from "@/assets/course-default-img.jpg";
 import {
@@ -20,11 +22,13 @@ import {
   fetchCourseSchedules,
   fetchEnrollments,
   fetchSavedCourses,
+  replyToReview,
   saveCourse,
   unsaveCourse,
 } from "@/store/thunks";
 
 const COURSE_DETAIL_DESCRIPTION_PREVIEW_CHAR_LIMIT = 280;
+const REVIEWS_PAGE_STEP = 5;
 const DEFAULT_COURSE_IMAGE = defaultCourseImage;
 
 const CourseDetailPage = () => {
@@ -38,6 +42,10 @@ const CourseDetailPage = () => {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [isDetailDescriptionExpanded, setIsDetailDescriptionExpanded] = useState(false);
+  const [visibleReviewsCount, setVisibleReviewsCount] = useState(REVIEWS_PAGE_STEP);
+  const [replyModalOpen, setReplyModalOpen] = useState(false);
+  const [replyDraft, setReplyDraft] = useState("");
+  const [selectedReviewForReply, setSelectedReviewForReply] = useState<Review | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingAuthAction, setPendingAuthAction] = useState<"enroll" | "save" | null>(null);
   const [isBookingOnboarding, setIsBookingOnboarding] = useState(false);
@@ -73,6 +81,7 @@ const CourseDetailPage = () => {
   const enrollments = useAppSelector((state) => state.enrollments.list?.data ?? []);
   const enrollmentsStatus = useAppSelector((state) => state.enrollments.requests.list.status);
   const createReviewStatus = useAppSelector((state) => state.reviews.requests.create.status);
+  const replyReviewStatus = useAppSelector((state) => state.reviews.requests.reply.status);
   const currentUser = useAppSelector((state) => state.users.currentUser);
   const accessToken = useAppSelector((state) => state.users.auth.accessToken);
   const isAuthenticated = Boolean(accessToken);
@@ -100,25 +109,26 @@ const CourseDetailPage = () => {
 
   useEffect(() => {
     setIsDetailDescriptionExpanded(false);
+    setVisibleReviewsCount(REVIEWS_PAGE_STEP);
   }, [courseId]);
 
   useEffect(() => {
-    if (isCourseIdValid && tab === "schedules" && schedulesStatus === "idle") {
+    if (tab === "reviews") {
+      setVisibleReviewsCount(REVIEWS_PAGE_STEP);
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    if (isCourseIdValid && tab === "schedules") {
       dispatch(fetchCourseSchedules(courseId));
     }
-  }, [courseId, dispatch, isCourseIdValid, schedulesStatus, tab]);
+  }, [courseId, dispatch, isCourseIdValid, tab]);
 
   const previewReviews = useMemo(() => {
-    if (course?.reviews?.length) {
-      return course.reviews;
+    if (fullReviews.length > 0) {
+      return fullReviews.slice(0, 3);
     }
-    return fullReviews.slice(0, 3).map((review) => ({
-      id: review.id,
-      rating: review.rating,
-      comment: review.comment,
-      tutor_reply: review.tutor_reply,
-      created_at: review.created_at,
-    }));
+    return course?.reviews ?? [];
   }, [course?.reviews, fullReviews]);
 
   const enrolledEnrollment = useMemo(
@@ -137,16 +147,49 @@ const CourseDetailPage = () => {
   const hasEligibleEnrollment = Boolean(enrolledEnrollment);
   const isAlreadyEnrolled = hasEligibleEnrollment;
   const totalReviewCount = fullReviews.length || previewReviews.length;
+  const hasAuthoredReview = Boolean(currentUser && fullReviews.some((review) => review.user_id === currentUser.id));
   const isCourseSaved = useMemo(
     () => savedCourses.some((savedCourse) => savedCourse.id === courseId),
     [courseId, savedCourses],
   );
+  const visibleReviews = useMemo(
+    () => fullReviews.slice(0, visibleReviewsCount),
+    [fullReviews, visibleReviewsCount],
+  );
+  const hasMoreReviews = fullReviews.length > visibleReviewsCount;
+
+  const getReviewAuthorLabel = (review: { id: number; author?: { initials?: string; first_name?: string; last_name?: string } }) => {
+    const initials = review.author?.initials || `U${String(review.id).slice(-2)}`;
+    const firstName = review.author?.first_name?.trim();
+    const lastInitial = review.author?.last_name?.trim()?.charAt(0).toUpperCase();
+    const displayName = firstName
+      ? `${firstName} ${lastInitial ? `${lastInitial}.` : ""}`.trim()
+      : "Learner";
+
+    return { initials, displayName };
+  };
+
+  const getDetailReviewAuthorLabel = (review: { id: number; author?: { initials?: string; first_name?: string; last_name?: string } }) => {
+    const initials = review.author?.initials || `U${String(review.id).slice(-2)}`;
+    const firstName = review.author?.first_name?.trim();
+    const lastInitial = review.author?.last_name?.trim()?.charAt(0).toUpperCase();
+    const displayName = firstName
+      ? `${firstName} ${lastInitial ? `${lastInitial}.` : ""}`.trim()
+      : "Learner";
+
+    return { initials, displayName };
+  };
 
   const handleSubmitReview = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!hasEligibleEnrollment) {
       setReviewMessage("Only enrolled learners (active/completed) can submit a review.");
+      return;
+    }
+
+    if (hasAuthoredReview) {
+      setReviewMessage("You have already submitted a review for this course.");
       return;
     }
 
@@ -219,6 +262,42 @@ const CourseDetailPage = () => {
       toast.error("Unable to generate onboarding booking link right now.");
     } finally {
       setIsBookingOnboarding(false);
+    }
+  };
+
+  const handleOpenReplyEditor = (review: Review) => {
+    setSelectedReviewForReply(review);
+    setReplyDraft(review.tutor_reply ?? "");
+    setReplyModalOpen(true);
+  };
+
+  const handleSubmitReply = async () => {
+    if (!selectedReviewForReply) {
+      return;
+    }
+
+    const replyText = replyDraft.trim();
+    if (!replyText) {
+      toast.error("Reply cannot be empty.");
+      return;
+    }
+
+    try {
+      await dispatch(
+        replyToReview({
+          courseId,
+          reviewId: selectedReviewForReply.id,
+          payload: { tutor_reply: replyText },
+        }),
+      ).unwrap();
+      toast.success("Reply saved successfully.");
+      setReplyModalOpen(false);
+      setSelectedReviewForReply(null);
+      setReplyDraft("");
+      dispatch(fetchCourseReviews(courseId));
+      dispatch(fetchCourseDetail(courseId));
+    } catch {
+      toast.error("Unable to save reply right now.");
     }
   };
 
@@ -344,23 +423,39 @@ const CourseDetailPage = () => {
                     <div className="space-y-4">
                       {previewReviews.map((review) => (
                         <div key={review.id} className="p-4 bg-card border border-border rounded-lg">
+                          {(() => {
+                            const { initials, displayName } = getDetailReviewAuthorLabel(review);
+                            return (
                           <div className="flex items-center gap-3 mb-2">
                             <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                              U{String(review.id).slice(-2)}
+                              {initials}
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-card-foreground">Learner</p>
+                              <p className="text-sm font-semibold text-card-foreground">{displayName}</p>
                               <div className="flex items-center gap-1">
                                 <StarRating rating={review.rating} size={12} />
                                 <span className="text-xs text-muted-foreground ml-1">{new Date(review.created_at).toLocaleDateString()}</span>
                               </div>
                             </div>
                           </div>
+                            );
+                          })()}
                           <p className="text-sm text-muted-foreground">{review.comment ?? "No comment provided."}</p>
-                          {review.tutor_reply && (
+                          {(isAdmin || review.tutor_reply) && (
                             <div className="mt-3 ml-4 pl-3 border-l-2 border-primary/30">
                               <p className="text-xs font-semibold text-primary mb-1">Tutor Reply</p>
-                              <p className="text-sm text-muted-foreground">{review.tutor_reply}</p>
+                              <p className="text-sm text-muted-foreground">{review.tutor_reply ?? "No reply yet."}</p>
+                            </div>
+                          )}
+                          {isAdmin && (
+                            <div className="mt-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenReplyEditor(review as Review)}
+                              >
+                                {review.tutor_reply ? "Edit Reply" : "Add Reply"}
+                              </Button>
                             </div>
                           )}
                         </div>
@@ -380,12 +475,25 @@ const CourseDetailPage = () => {
 
                 {!isAdmin && (
                   <TabsContent value="schedules">
-                    {schedulesStatus === "loading" && (
+                    {(schedulesStatus === "idle" || schedulesStatus === "loading") && (
                       <div className="flex flex-col items-center justify-center py-16 text-center">
                         <p className="text-muted-foreground">Loading schedule...</p>
                       </div>
                     )}
-                    {schedulesStatus !== "loading" && schedules.length > 0 && (
+                    {schedulesStatus === "failed" && (
+                      <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+                        <p className="text-muted-foreground">Unable to load schedules right now.</p>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            dispatch(fetchCourseSchedules(courseId));
+                          }}
+                        >
+                          Retry
+                        </Button>
+                      </div>
+                    )}
+                    {schedulesStatus === "succeeded" && schedules.length > 0 && (
                       <div className="space-y-4">
                         {schedules.map((schedule) => (
                           <div key={schedule.id} className="p-4 bg-card border border-border rounded-lg">
@@ -407,7 +515,7 @@ const CourseDetailPage = () => {
                         ))}
                       </div>
                     )}
-                    {schedulesStatus !== "loading" && schedules.length === 0 && (
+                    {schedulesStatus === "succeeded" && schedules.length === 0 && (
                       <div className="flex flex-col items-center justify-center py-16 text-center">
                         <Calendar className="w-12 h-12 text-muted-foreground mb-4" />
                         {isAlreadyEnrolled ? (
@@ -440,7 +548,7 @@ const CourseDetailPage = () => {
 
                     {isAdmin && (
                       <p className="text-sm text-muted-foreground">
-                        Admin accounts are read-only for student reviews.
+                        Admins can reply to student reviews.
                       </p>
                     )}
 
@@ -454,7 +562,13 @@ const CourseDetailPage = () => {
                       </p>
                     )}
 
-                    {!isAdmin && (
+                    {!isAdmin && enrollmentsStatus !== "loading" && hasEligibleEnrollment && hasAuthoredReview && (
+                      <p className="text-sm text-muted-foreground">
+                        You have already submitted a review for this course.
+                      </p>
+                    )}
+
+                    {!isAdmin && !hasAuthoredReview && (
                     <form className="space-y-4 mt-3" onSubmit={handleSubmitReview}>
                       <div>
                         <p className="text-sm text-muted-foreground mb-2">Your rating</p>
@@ -500,31 +614,57 @@ const CourseDetailPage = () => {
                   </div>
 
                   <div className="space-y-4">
-                    {fullReviews.map((review) => (
+                    {visibleReviews.map((review) => (
                       <div key={review.id} className="p-4 bg-card border border-border rounded-lg">
+                        {(() => {
+                          const { initials, displayName } = getReviewAuthorLabel(review);
+                          return (
                         <div className="flex items-center gap-3 mb-2">
                           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                            U{String(review.id).slice(-2)}
+                            {initials}
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-card-foreground">Learner</p>
+                            <p className="text-sm font-semibold text-card-foreground">{displayName}</p>
                             <div className="flex items-center gap-1">
                               <StarRating rating={review.rating} size={12} />
                               <span className="text-xs text-muted-foreground ml-1">{new Date(review.created_at).toLocaleDateString()}</span>
                             </div>
                           </div>
                         </div>
+                          );
+                        })()}
                         <p className="text-sm text-muted-foreground">{review.comment ?? "No comment provided."}</p>
-                        {review.tutor_reply && (
+                        {(isAdmin || review.tutor_reply) && (
                           <div className="mt-3 ml-4 pl-3 border-l-2 border-primary/30">
                             <p className="text-xs font-semibold text-primary mb-1">Tutor Reply</p>
-                            <p className="text-sm text-muted-foreground">{review.tutor_reply}</p>
+                            <p className="text-sm text-muted-foreground">{review.tutor_reply ?? "No reply yet."}</p>
+                          </div>
+                        )}
+                        {isAdmin && (
+                          <div className="mt-3">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenReplyEditor(review)}
+                            >
+                              {review.tutor_reply ? "Edit Reply" : "Add Reply"}
+                            </Button>
                           </div>
                         )}
                       </div>
                     ))}
                     {fullReviews.length === 0 && (
                       <p className="text-muted-foreground">No reviews yet for this course.</p>
+                    )}
+                    {fullReviews.length > 0 && hasMoreReviews && (
+                      <div className="pt-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setVisibleReviewsCount((current) => current + REVIEWS_PAGE_STEP)}
+                        >
+                          Load More Reviews
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </TabsContent>
@@ -583,6 +723,41 @@ const CourseDetailPage = () => {
         </div>
       </main>
       <Footer />
+      <Dialog open={replyModalOpen} onOpenChange={setReplyModalOpen}>
+        <DialogContent className="bg-card sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-card-foreground">
+              {selectedReviewForReply?.tutor_reply ? "Edit Reply" : "Add Reply"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Reply to this student review.</p>
+            <Textarea
+              value={replyDraft}
+              onChange={(event) => setReplyDraft(event.target.value)}
+              placeholder="Write your reply"
+              rows={4}
+              disabled={replyReviewStatus === "loading"}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReplyModalOpen(false);
+                setSelectedReviewForReply(null);
+                setReplyDraft("");
+              }}
+              disabled={replyReviewStatus === "loading"}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void handleSubmitReply()} disabled={replyReviewStatus === "loading"}>
+              {replyReviewStatus === "loading" ? "Saving..." : "Save Reply"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AuthModal
         open={isAuthModalOpen}
         onOpenChange={setIsAuthModalOpen}

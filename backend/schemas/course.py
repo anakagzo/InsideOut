@@ -1,12 +1,20 @@
 from marshmallow import Schema, fields
 
 
+class CourseReviewAuthorSummarySchema(Schema):
+    id = fields.Int(dump_only=True)
+    initials = fields.Str(dump_only=True)
+    first_name = fields.Str(dump_only=True)
+    last_name = fields.Str(dump_only=True)
+
+
 class CourseReviewSummarySchema(Schema):
     id = fields.Int(dump_only=True)
     rating = fields.Int(dump_only=True)
     comment = fields.Str(dump_only=True)
     tutor_reply = fields.Str(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
+    author = fields.Nested(CourseReviewAuthorSummarySchema, dump_only=True)
 
 
 class CourseSchema(Schema):

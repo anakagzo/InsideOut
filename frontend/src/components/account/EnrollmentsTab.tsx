@@ -15,6 +15,7 @@ import { selectFilteredEnrollmentRows } from "@/store/selectors/accountSelectors
 
 const SLOT_STEP_MINUTES = 30;
 const DATE_WINDOW_DAYS = 90;
+const ENROLLMENTS_PAGE_STEP = 50;
 
 type DraftSchedule = {
   id: number;
@@ -67,21 +68,38 @@ export const EnrollmentsTab = () => {
   const [publicAvailability, setPublicAvailability] = useState<PublicAvailabilityConfig | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [enrollmentsPage, setEnrollmentsPage] = useState(1);
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
   const [confirmCompleteMessage, setConfirmCompleteMessage] = useState(
     "This enrollment has upcoming classes. Completing now will stop notifications and invalidate meeting links for pending sessions.",
   );
 
   const enrollmentsStatus = useAppSelector((state) => state.enrollments.requests.list.status);
+  const enrollmentsList = useAppSelector((state) => state.enrollments.list);
   const filteredRows = useAppSelector((state) => selectFilteredEnrollmentRows(state, searchQuery));
+
+  const loadedCount = enrollmentsList?.data.length ?? 0;
+  const totalCount = enrollmentsList?.pagination.total ?? loadedCount;
+  const hasMoreEnrollments = loadedCount < totalCount;
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      dispatch(fetchEnrollments({ page: 1, page_size: 100, search: searchQuery || undefined }));
+      dispatch(
+        fetchEnrollments({
+          page: enrollmentsPage,
+          page_size: ENROLLMENTS_PAGE_STEP,
+          search: searchQuery || undefined,
+          append: enrollmentsPage > 1,
+        }),
+      );
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [dispatch, searchQuery]);
+  }, [dispatch, enrollmentsPage, searchQuery]);
+
+  useEffect(() => {
+    setEnrollmentsPage(1);
+  }, [searchQuery]);
 
   useEffect(() => {
     dispatch(fetchUsers({ page: 1, page_size: 100 }));
@@ -323,7 +341,8 @@ export const EnrollmentsTab = () => {
         force_complete: forceComplete,
       });
 
-      await dispatch(fetchEnrollments({ page: 1, page_size: 100, search: searchQuery || undefined }));
+      setEnrollmentsPage(1);
+      await dispatch(fetchEnrollments({ page: 1, page_size: ENROLLMENTS_PAGE_STEP, search: searchQuery || undefined }));
       toast.success("Enrollment updated successfully.");
       setConfirmCompleteOpen(false);
       setEditModalOpen(false);
@@ -428,6 +447,18 @@ export const EnrollmentsTab = () => {
           <div className="text-center py-12 text-muted-foreground">
             <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
             <p>No enrollments found.</p>
+          </div>
+        )}
+
+        {hasMoreEnrollments && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setEnrollmentsPage((current) => current + 1)}
+              disabled={enrollmentsStatus === "loading"}
+            >
+              {enrollmentsStatus === "loading" ? "Loading..." : `Load More (${loadedCount}/${totalCount})`}
+            </Button>
           </div>
         )}
       </div>

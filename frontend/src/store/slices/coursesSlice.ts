@@ -13,11 +13,24 @@ import type {
 } from "@/api/types";
 import { createRequestState, setFailed, setPending, setSucceeded, type RequestState } from "@/store/slices/requestState";
 
+type FetchCoursesParams = CourseListParams & { append?: boolean };
+type FetchSavedCoursesParams = SavedCoursesParams & { append?: boolean };
+
+const mergeById = <T extends { id: number }>(current: T[], incoming: T[]) => {
+  const map = new Map<number, T>();
+  current.forEach((item) => map.set(item.id, item));
+  incoming.forEach((item) => map.set(item.id, item));
+  return [...map.values()];
+};
+
 /**
  * Course domain thunks.
  */
-export const fetchCourses = createAsyncThunk("courses/fetchList", async (params?: CourseListParams) =>
-  coursesApi.list(params),
+export const fetchCourses = createAsyncThunk<CourseListResponse, FetchCoursesParams | undefined>("courses/fetchList", async (params?: FetchCoursesParams) =>
+  {
+    const { append: _append, ...apiParams } = params ?? {};
+    return coursesApi.list(apiParams);
+  },
 );
 
 export const fetchCourseDetail = createAsyncThunk("courses/fetchDetail", async (courseId: number) =>
@@ -46,9 +59,12 @@ export const unsaveCourse = createAsyncThunk("courses/unsave", async (courseId: 
   coursesApi.unsave(courseId),
 );
 
-export const fetchSavedCourses = createAsyncThunk(
+export const fetchSavedCourses = createAsyncThunk<CourseListResponse, FetchSavedCoursesParams | undefined>(
   "courses/fetchSaved",
-  async (params?: SavedCoursesParams) => coursesApi.listSaved(params),
+  async (params?: FetchSavedCoursesParams) => {
+    const { append: _append, ...apiParams } = params ?? {};
+    return coursesApi.listSaved(apiParams);
+  },
 );
 
 export const fetchCourseSchedules = createAsyncThunk("courses/fetchSchedules", async (courseId: number) =>
@@ -114,8 +130,15 @@ const coursesSlice = createSlice({
         setPending(state.requests.list);
       })
       .addCase(fetchCourses.fulfilled, (state, action) => {
-        state.list = action.payload;
-        action.payload.data.forEach((course) => {
+        const shouldAppend = Boolean((action.meta.arg as FetchCoursesParams | undefined)?.append && state.list);
+        state.list = shouldAppend && state.list
+          ? {
+              data: mergeById(state.list.data, action.payload.data),
+              pagination: action.payload.pagination,
+            }
+          : action.payload;
+
+        (state.list?.data ?? action.payload.data).forEach((course) => {
           const existing = state.byId[course.id];
           if (existing) {
             state.byId[course.id] = { ...existing, ...course };
@@ -215,7 +238,13 @@ const coursesSlice = createSlice({
         setPending(state.requests.savedList);
       })
       .addCase(fetchSavedCourses.fulfilled, (state, action) => {
-        state.saved = action.payload;
+        const shouldAppend = Boolean((action.meta.arg as FetchSavedCoursesParams | undefined)?.append && state.saved);
+        state.saved = shouldAppend && state.saved
+          ? {
+              data: mergeById(state.saved.data, action.payload.data),
+              pagination: action.payload.pagination,
+            }
+          : action.payload;
         setSucceeded(state.requests.savedList);
       })
       .addCase(fetchSavedCourses.rejected, (state, action) => {

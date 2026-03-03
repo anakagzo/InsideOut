@@ -12,6 +12,15 @@ import type {
 } from "@/api/types";
 import { createRequestState, setFailed, setPending, setSucceeded } from "@/store/slices/requestState";
 
+type FetchUsersParams = { page?: number; page_size?: number; search?: string; append?: boolean };
+
+const mergeById = <T extends { id: number }>(current: T[], incoming: T[]) => {
+  const map = new Map<number, T>();
+  current.forEach((item) => map.set(item.id, item));
+  incoming.forEach((item) => map.set(item.id, item));
+  return [...map.values()];
+};
+
 const ACCESS_TOKEN_KEY = "insideout_access_token";
 const REFRESH_TOKEN_KEY = "insideout_refresh_token";
 
@@ -54,7 +63,10 @@ export const changeCurrentUserPassword = createAsyncThunk(
 
 export const fetchUsers = createAsyncThunk(
   "users/fetchList",
-  async (params?: { page?: number; page_size?: number; search?: string }) => usersApi.listUsers(params),
+  async (params?: FetchUsersParams) => {
+    const { append: _append, ...apiParams } = params ?? {};
+    return usersApi.listUsers(apiParams);
+  },
 );
 
 export const deleteUser = createAsyncThunk("users/delete", async (userId: number) => usersApi.deleteUser(userId));
@@ -169,7 +181,13 @@ const usersSlice = createSlice({
       )
       .addCase(fetchUsers.pending, (state) => setPending(state.requests.fetchUsers))
       .addCase(fetchUsers.fulfilled, (state, action) => {
-        state.usersList = action.payload;
+        const shouldAppend = Boolean((action.meta.arg as FetchUsersParams | undefined)?.append && state.usersList);
+        state.usersList = shouldAppend && state.usersList
+          ? {
+              data: mergeById(state.usersList.data, action.payload.data),
+              pagination: action.payload.pagination,
+            }
+          : action.payload;
         setSucceeded(state.requests.fetchUsers);
       })
       .addCase(fetchUsers.rejected, (state, action) => setFailed(state.requests.fetchUsers, action.error.message))

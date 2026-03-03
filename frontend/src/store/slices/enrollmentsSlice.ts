@@ -10,9 +10,19 @@ import type {
 } from "@/api/types";
 import { createRequestState, setFailed, setPending, setSucceeded } from "@/store/slices/requestState";
 
-export const fetchEnrollments = createAsyncThunk("enrollments/fetchList", async (params?: EnrollmentListParams) =>
-  enrollmentsApi.list(params),
-);
+type FetchEnrollmentsParams = EnrollmentListParams & { append?: boolean };
+
+const mergeById = <T extends { id: number }>(current: T[], incoming: T[]) => {
+  const map = new Map<number, T>();
+  current.forEach((item) => map.set(item.id, item));
+  incoming.forEach((item) => map.set(item.id, item));
+  return [...map.values()];
+};
+
+export const fetchEnrollments = createAsyncThunk("enrollments/fetchList", async (params?: FetchEnrollmentsParams) => {
+  const { append: _append, ...apiParams } = params ?? {};
+  return enrollmentsApi.list(apiParams);
+});
 
 export const createEnrollment = createAsyncThunk(
   "enrollments/create",
@@ -68,8 +78,15 @@ const enrollmentsSlice = createSlice({
     builder
       .addCase(fetchEnrollments.pending, (state) => setPending(state.requests.list))
       .addCase(fetchEnrollments.fulfilled, (state, action) => {
-        state.list = action.payload;
-        action.payload.data.forEach((enrollment) => {
+        const shouldAppend = Boolean((action.meta.arg as FetchEnrollmentsParams | undefined)?.append && state.list);
+        state.list = shouldAppend && state.list
+          ? {
+              data: mergeById(state.list.data, action.payload.data),
+              pagination: action.payload.pagination,
+            }
+          : action.payload;
+
+        (state.list?.data ?? action.payload.data).forEach((enrollment) => {
           state.byId[enrollment.id] = enrollment;
         });
         setSucceeded(state.requests.list);

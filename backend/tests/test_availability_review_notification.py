@@ -137,6 +137,37 @@ def test_student_can_create_review_once_when_enrolled(
     assert duplicate_response.status_code == 400
 
 
+def test_review_list_includes_author_profile_fields(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+):
+    student = create_user(role="student", first_name="Freda", last_name="McWen")
+    course = create_course()
+    create_enrollment(student.id, course.id)
+
+    create_response = client.post(
+        f"/courses/{course.id}/reviews/",
+        json={"rating": 5, "comment": "Great course"},
+        headers=auth_headers(student),
+    )
+    assert create_response.status_code == 201
+
+    list_response = client.get(f"/courses/{course.id}/reviews/")
+    assert list_response.status_code == 200
+
+    payload = list_response.get_json()
+    assert len(payload) == 1
+    review = payload[0]
+
+    assert review["author"]["id"] == student.id
+    assert review["author"]["initials"] == student.initials
+    assert review["author"]["first_name"] == student.first_name
+    assert review["author"]["last_name"] == student.last_name
+
+
 def test_student_cannot_review_without_enrollment(
     client,
     create_user,
@@ -187,6 +218,43 @@ def test_admin_can_reply_to_review_as_tutor(
     )
     assert reply_response.status_code == 200
     assert reply_response.get_json()["tutor_reply"] == "Thanks"
+
+
+def test_course_detail_includes_admin_reply_in_review_preview(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+):
+    student = create_user(role="student", email="student-detail-reply@example.com")
+    admin = create_user(role="admin", email="admin-detail-reply@example.com")
+    course = create_course()
+    create_enrollment(student.id, course.id)
+
+    create_response = client.post(
+        f"/courses/{course.id}/reviews/",
+        json={"rating": 5, "comment": "Very helpful"},
+        headers=auth_headers(student),
+    )
+    assert create_response.status_code == 201
+    review_id = create_response.get_json()["id"]
+
+    reply_response = client.put(
+        f"/courses/{course.id}/reviews/{review_id}/reply",
+        json={"tutor_reply": "Glad it helped"},
+        headers=auth_headers(admin),
+    )
+    assert reply_response.status_code == 200
+
+    detail_response = client.get(f"/courses/{course.id}")
+    assert detail_response.status_code == 200
+    payload = detail_response.get_json()
+
+    assert len(payload["reviews"]) == 1
+    detail_review = payload["reviews"][0]
+    assert detail_review["id"] == review_id
+    assert detail_review["tutor_reply"] == "Glad it helped"
 
 
 def test_notification_settings_upsert_and_get(

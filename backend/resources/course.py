@@ -206,6 +206,12 @@ class CourseDetail(MethodView):
                     "comment": review.comment,
                     "tutor_reply": review.tutor_reply,
                     "created_at": review.created_at,
+                    "author": {
+                        "id": review.user.id,
+                        "initials": review.user.initials,
+                        "first_name": review.user.first_name,
+                        "last_name": review.user.last_name,
+                    } if review.user else None,
                 }
                 for review in latest_reviews
             ],

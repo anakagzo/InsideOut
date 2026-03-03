@@ -41,7 +41,9 @@ export function CourseCard({
   const isAuthenticated = useAppSelector((state) => Boolean(state.users.auth.accessToken));
   const canEnroll = currentUser?.role !== "admin";
   const imageSrc = course.image?.trim() ? course.image : DEFAULT_COURSE_IMAGE;
-  const isNewCourse = course.reviewCount <= 0;
+  const numericRating = Number(course.rating);
+  const hasRating = Number.isFinite(numericRating) && numericRating > 0;
+  const isNewCourse = !hasRating;
 
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -120,8 +122,10 @@ export function CourseCard({
                 ) : (
                   <>
                     <Star className="w-4 h-4 fill-star text-star" />
-                    <span className="text-sm font-semibold text-card-foreground">{course.rating}</span>
-                    <span className="text-xs text-muted-foreground">({course.reviewCount})</span>
+                    <span className="text-sm font-semibold text-card-foreground">{numericRating.toFixed(1)}</span>
+                    {course.reviewCount > 0 && (
+                      <span className="text-xs text-muted-foreground">({course.reviewCount})</span>
+                    )}
                   </>
                 )}
               </div>
@@ -175,8 +179,10 @@ export function CourseCard({
           ) : (
             <>
               <Star className="w-4 h-4 fill-star text-star" />
-              <span className="text-sm font-semibold text-card-foreground">{course.rating}</span>
-              <span className="text-xs text-muted-foreground">({course.reviewCount})</span>
+              <span className="text-sm font-semibold text-card-foreground">{numericRating.toFixed(1)}</span>
+              {course.reviewCount > 0 && (
+                <span className="text-xs text-muted-foreground">({course.reviewCount})</span>
+              )}
             </>
           )}
         </div>
