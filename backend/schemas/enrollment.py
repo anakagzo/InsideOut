@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 from .schedule import ScheduleSchema
 
 
@@ -23,6 +23,10 @@ class EnrollmentSchema(Schema):
     status = fields.Str()
     start_date = fields.DateTime()
     end_date = fields.DateTime()
+    provider_invalidation_targets = fields.Int(dump_only=True, allow_none=True)
+    provider_invalidation_succeeded = fields.Int(dump_only=True, allow_none=True)
+    links_refreshed_count = fields.Int(dump_only=True, allow_none=True)
+    blocked_reminders_count = fields.Int(dump_only=True, allow_none=True)
 
     student = fields.Nested(EnrollmentStudentSchema, dump_only=True)
     course = fields.Nested(EnrollmentCourseSchema, dump_only=True)
@@ -55,3 +59,8 @@ class EnrollmentPaginationSchema(Schema):
 class EnrollmentListResponseSchema(Schema):
     data = fields.List(fields.Nested(EnrollmentSchema))
     pagination = fields.Nested(EnrollmentPaginationSchema)
+
+
+class EnrollmentUpdateSchema(Schema):
+    status = fields.Str(required=True, validate=validate.OneOf(["active", "completed"]))
+    force_complete = fields.Bool(load_default=False)

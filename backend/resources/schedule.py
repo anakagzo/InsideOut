@@ -56,6 +56,18 @@ def _create_shared_zoom_link(enrollment: Enrollment) -> str:
         logger.exception("Zoom meeting creation failed", extra={"enrollment_id": enrollment.id})
         abort(502, message=str(exc))
 
+
+def _sync_enrollment_schedule_window(enrollment: Enrollment):
+    schedule_dates = [schedule.date for schedule in enrollment.schedules if schedule.date is not None]
+    if not schedule_dates:
+        return
+
+    first_date = min(schedule_dates)
+    last_date = max(schedule_dates)
+    enrollment.start_date = datetime.combine(first_date, datetime.min.time())
+    enrollment.end_date = datetime.combine(last_date, datetime.min.time())
+    enrollment.status = "active" if datetime.now(timezone.utc).date() <= last_date else "completed"
+
 @blp.route("/")
 class ScheduleList(MethodView):
     """Collection operations for schedules."""
@@ -101,9 +113,12 @@ class ScheduleList(MethodView):
         
         enrollment_id = enrollment_ids.pop()
         enrollment = _get_enrollment_or_404(enrollment_id)
+
+        if enrollment.status == "completed":
+            abort(409, message="Enrollment is completed. Set it to active before adding new schedules.")
         
-        # Verify user owns this enrollment
-        if enrollment.student_id != user_id:
+        # Students can only create schedules for their own enrollments; admins can create for any enrollment.
+        if user.role != "admin" and enrollment.student_id != user_id:
             abort(403, message="Cannot create schedule for another user's enrollment.")
 
         shared_zoom_link = _get_or_create_shared_zoom_link(enrollment)
@@ -127,21 +142,17 @@ class ScheduleList(MethodView):
             db.session.add(schedule)
             schedules.append(schedule)
         
-        # Update enrollment end_date to latest schedule
-        max_date = max(s.date for s in schedules)
-        enrollment_end_date = enrollment.end_date.date() if enrollment.end_date else None
-        if enrollment_end_date is None or max_date > enrollment_end_date:
-            enrollment.end_date = datetime.combine(max_date, datetime.min.time())
-        
-        # Update enrollment status based on dates
-        enrollment.status = "active" if datetime.now(timezone.utc).date() <= max_date else "completed"
+        _sync_enrollment_schedule_window(enrollment)
         db.session.commit()
-        queued_count = notify_schedule_created(
-            student=user,
-            course_title=enrollment.course.title,
-            schedule_count=len(schedules),
-            first_date=min(s.date for s in schedules) if schedules else None,
-        )
+
+        queued_count = 0
+        if enrollment.status != "completed":
+            queued_count = notify_schedule_created(
+                student=enrollment.student,
+                course_title=enrollment.course.title,
+                schedule_count=len(schedules),
+                first_date=min(s.date for s in schedules) if schedules else None,
+            )
         logger.info(
             "Schedule notifications queued",
             extra={"user_id": user_id, "enrollment_id": enrollment_id, "queued_count": queued_count},

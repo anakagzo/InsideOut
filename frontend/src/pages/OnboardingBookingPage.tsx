@@ -25,8 +25,9 @@ import { usePayments } from "@/features/payments/usePayments";
 import { paymentsApi } from "@/api/insideoutApi";
 import defaultCourseImage from "@/assets/course-default-img.jpg";
 
-const ONBOARDING_DURATION_MINUTES = 60;
+const ONBOARDING_DURATION_MINUTES = 30;
 const SLOT_STEP_MINUTES = 30;
+const AVAILABILITY_REFRESH_INTERVAL_MS = 30000;
 const DEFAULT_COURSE_IMAGE = defaultCourseImage;
 
 const normalizeTime = (value: string) => value.slice(0, 5);
@@ -88,6 +89,8 @@ const OnboardingBookingPage = () => {
   const [bookedRange, setBookedRange] = useState<{ start: string; end: string } | null>(null);
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [tokenRefreshError, setTokenRefreshError] = useState<string | null>(null);
+  const [lastAvailabilityUpdatedAt, setLastAvailabilityUpdatedAt] = useState<Date | null>(null);
+  const [nowMs, setNowMs] = useState<number>(Date.now());
   const refreshAttemptRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -98,6 +101,58 @@ const OnboardingBookingPage = () => {
     dispatch(fetchPublicAvailability());
     dispatch(fetchCourseSchedules(courseId));
   }, [courseId, dispatch, isCourseIdValid]);
+
+  useEffect(() => {
+    if (!isCourseIdValid) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      dispatch(fetchPublicAvailability());
+    }, AVAILABILITY_REFRESH_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [dispatch, isCourseIdValid]);
+
+  useEffect(() => {
+    if (onboardingAvailabilityStatus === "succeeded") {
+      setLastAvailabilityUpdatedAt(new Date());
+    }
+  }, [onboardingAvailabilityStatus, onboardingAvailability]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const availabilityFreshnessLabel = useMemo(() => {
+    if (!lastAvailabilityUpdatedAt) {
+      return "Updating...";
+    }
+
+    const elapsedSeconds = Math.max(0, Math.floor((nowMs - lastAvailabilityUpdatedAt.getTime()) / 1000));
+    if (elapsedSeconds < 5) {
+      return "just now";
+    }
+    if (elapsedSeconds < 60) {
+      return `${elapsedSeconds}s ago`;
+    }
+
+    const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+    if (elapsedMinutes < 60) {
+      return `${elapsedMinutes}m ago`;
+    }
+
+    const elapsedHours = Math.floor(elapsedMinutes / 60);
+    return `${elapsedHours}h ago`;
+  }, [lastAvailabilityUpdatedAt, nowMs]);
 
   useEffect(() => {
     if (!token || !isCourseIdValid) {
@@ -228,7 +283,24 @@ const OnboardingBookingPage = () => {
       }
     });
 
-    return [...startMap.values()].sort((left, right) => left.start.localeCompare(right.start));
+    const sortedSlots = [...startMap.values()].sort((left, right) => left.start.localeCompare(right.start));
+    const nonOverlappingSlots: Array<{ start: string; end: string }> = [];
+
+    sortedSlots.forEach((slot) => {
+      const slotStartMinute = toMinuteIndex(slot.start);
+      const slotEndMinute = toMinuteIndex(slot.end);
+      const overlapsChosen = nonOverlappingSlots.some((chosen) => {
+        const chosenStartMinute = toMinuteIndex(chosen.start);
+        const chosenEndMinute = toMinuteIndex(chosen.end);
+        return slotStartMinute < chosenEndMinute && slotEndMinute > chosenStartMinute;
+      });
+
+      if (!overlapsChosen) {
+        nonOverlappingSlots.push(slot);
+      }
+    });
+
+    return nonOverlappingSlots;
   }, [availabilityDays, onboardingAvailability, selectedDate, unavailableDateSet]);
 
   const isExpired =
@@ -524,6 +596,9 @@ const OnboardingBookingPage = () => {
             Schedule your first one-on-one meeting with your tutor for{" "}
             <span className="font-medium text-foreground">{course.title}</span>
           </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Availability refreshes every 30s · Last updated {availabilityFreshnessLabel}
+          </p>
           {onboardingAvailabilityStatus === "failed" && (
             <p className="text-sm text-destructive mt-3">
               {onboardingAvailabilityError ?? "Could not load tutor availability."}
@@ -687,7 +762,7 @@ const OnboardingBookingPage = () => {
                   <Clock className="w-4 h-4 text-primary mt-0.5" />
                   <div>
                     <p className="text-xs text-muted-foreground">Duration</p>
-                    <p className="text-sm font-medium text-foreground">1 hour</p>
+                    <p className="text-sm font-medium text-foreground">30 minutes</p>
                   </div>
                 </div>
               </div>
@@ -766,7 +841,7 @@ const OnboardingBookingPage = () => {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Duration</span>
-              <span className="font-medium text-foreground">1 hour</span>
+              <span className="font-medium text-foreground">30 minutes</span>
             </div>
           </div>
 

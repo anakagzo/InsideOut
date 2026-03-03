@@ -7,7 +7,13 @@ from schemas.availability import (
 	PublicAvailabilitySchema,
 )
 from schemas.course import CourseSchema, CourseDetailSchema, CourseListResponseSchema
-from schemas.enrollment import EnrollmentSchema, ScheduleItemSchema, GroupedScheduleSchema, EnrollmentListResponseSchema
+from schemas.enrollment import (
+	EnrollmentSchema,
+	ScheduleItemSchema,
+	GroupedScheduleSchema,
+	EnrollmentListResponseSchema,
+	EnrollmentUpdateSchema,
+)
 from schemas.notification import (
 	NotificationSchema,
 	PaymentNotificationOutcomeSchema,

@@ -14,6 +14,7 @@ import type {
   CreateReviewPayload,
   CreateSchedulePayload,
   CreateEnrollmentPayload,
+  UpdateEnrollmentPayload,
   Enrollment,
   EnrollmentListParams,
   EnrollmentListResponse,
@@ -172,6 +173,14 @@ export const enrollmentsApi = {
    */
   async getById(enrollmentId: number): Promise<Enrollment> {
     const { data } = await apiClient.get<Enrollment>(`/enrollments/${enrollmentId}`);
+    return data;
+  },
+
+  /**
+   * Update enrollment state (admin endpoint).
+   */
+  async update(enrollmentId: number, payload: UpdateEnrollmentPayload): Promise<Enrollment> {
+    const { data } = await apiClient.put<Enrollment>(`/enrollments/${enrollmentId}`, payload);
     return data;
   },
 

@@ -236,6 +236,8 @@ def _queue_meeting_reminder_for_schedule(schedule: Schedule, now: datetime, wind
     enrollment = schedule.enrollment
     if not enrollment or not enrollment.student:
         return 0
+    if enrollment.status == "completed":
+        return 0
 
     student = enrollment.student
     recipients = _student_and_admin_recipients(student)

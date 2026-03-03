@@ -169,6 +169,11 @@ export interface CreateEnrollmentPayload {
   course_id: number;
 }
 
+export interface UpdateEnrollmentPayload {
+  status: "active" | "completed";
+  force_complete?: boolean;
+}
+
 export interface EnrollmentListParams {
   page?: number;
   page_size?: number;
@@ -179,7 +184,7 @@ export interface Enrollment {
   id: number;
   student_id: number;
   course_id: number;
-  status: "active" | "completed";
+  status: "active" | "completed" | "cancelled";
   start_date: string;
   end_date: string | null;
   course?: {
