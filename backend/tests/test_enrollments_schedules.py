@@ -171,6 +171,7 @@ def test_schedule_creation_updates_enrollment_dates_and_status(
     grouped_payload = grouped_response.get_json()
     assert len(grouped_payload) == 1
     assert grouped_payload[0]["date"] == future_date.isoformat()
+    assert grouped_payload[0]["schedules"][0]["enrollment_id"] == enrollment.id
 
     enrollment_response = client.get(f"/enrollments/{enrollment.id}", headers=auth_headers(student))
     assert enrollment_response.status_code == 200
@@ -541,6 +542,7 @@ def test_schedule_create_skips_email_when_schedule_notifications_disabled(
     create_user,
     create_course,
     create_enrollment,
+    create_schedule,
     auth_headers,
     monkeypatch,
 ):
@@ -553,6 +555,7 @@ def test_schedule_create_skips_email_when_schedule_notifications_disabled(
     student = create_user(email="schedule-notify-off@example.com")
     course = create_course()
     enrollment = create_enrollment(student.id, course.id, status="active")
+    create_schedule(enrollment.id, date=date.today() + timedelta(days=2))
 
     with app.app_context():
         settings = EmailNotificationSettings()
@@ -577,6 +580,44 @@ def test_schedule_create_skips_email_when_schedule_notifications_disabled(
     assert response.status_code == 201
     recipients = {item[0] for item in queued}
     assert student.email not in recipients
+    assert admin.email not in recipients
+
+
+def test_onboarding_schedule_creation_notifies_student_and_admin(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    auth_headers,
+    monkeypatch,
+):
+    import utils.notifications as notifications_module
+
+    queued = []
+    monkeypatch.setattr(notifications_module, "queue_email", lambda to_email, subject, body: queued.append((to_email, subject, body)))
+
+    admin = create_user(role="admin", email="onboarding-notify-admin@example.com")
+    student = create_user(email="onboarding-notify-student@example.com")
+    course = create_course(title="Onboarding Notify Course")
+    enrollment = create_enrollment(student.id, course.id, status="active")
+
+    response = client.post(
+        "/schedules/",
+        json=[
+            {
+                "enrollment_id": enrollment.id,
+                "date": (date.today() + timedelta(days=3)).isoformat(),
+                "start_time": "10:00:00",
+                "end_time": "10:30:00",
+                "is_onboarding_booking": True,
+            }
+        ],
+        headers=auth_headers(student),
+    )
+
+    assert response.status_code == 201
+    recipients = {item[0] for item in queued}
+    assert student.email in recipients
     assert admin.email in recipients
 
 
@@ -748,3 +789,26 @@ def test_student_can_request_schedule_change_and_admin_is_emailed(
 
     recipients = [item[0] for item in queued]
     assert admin.email in recipients
+
+
+def test_admin_cannot_request_schedule_change(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    create_schedule,
+    auth_headers,
+):
+    admin = create_user(role="admin", email="schedule-change-admin-forbidden@example.com")
+    student = create_user(email="schedule-change-owner@example.com")
+    course = create_course(title="Schedule Change Forbidden Course")
+    enrollment = create_enrollment(student.id, course.id, status="active")
+    schedule = create_schedule(enrollment.id)
+
+    response = client.post(
+        f"/schedules/{schedule.id}/request-change",
+        json={"subject": "Trying as admin", "comments": "Should be blocked."},
+        headers=auth_headers(admin),
+    )
+
+    assert response.status_code == 403

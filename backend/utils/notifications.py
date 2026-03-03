@@ -150,10 +150,16 @@ def notify_payment_confirmed(student: User, course_title: str, onboarding_bookin
     return queued_count
 
 
-def notify_schedule_created(student: User, course_title: str, schedule_count: int, first_date: date | None) -> int:
+def notify_schedule_created(
+    student: User,
+    course_title: str,
+    schedule_count: int,
+    first_date: date | None,
+    include_admins: bool = False,
+) -> int:
     plural = "s" if schedule_count != 1 else ""
     date_hint = f" starting on <strong>{first_date.isoformat()}</strong>" if first_date else ""
-    recipients = _student_and_admin_recipients(student)
+    recipients = _student_and_admin_recipients(student) if include_admins else [student]
     queued_count = 0
 
     for recipient in recipients:

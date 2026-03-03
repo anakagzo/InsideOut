@@ -385,6 +385,7 @@ class EnrollmentSchedules(MethodView):
                 date_key = schedule.date.isoformat()  # Use ISO format for date key
                 schedules_by_date[date_key].append({
                     "id": schedule.id,
+                    "enrollment_id": enrollment.id,
                     "date": schedule.date,
                     "start_time": schedule.start_time,
                     "end_time": schedule.end_time,

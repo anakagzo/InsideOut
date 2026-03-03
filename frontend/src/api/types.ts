@@ -211,6 +211,7 @@ export interface CreateSchedulePayload {
   date: string;
   start_time: string;
   end_time: string;
+  is_onboarding_booking?: boolean;
   zoom_link?: string;
   status?: string;
 }

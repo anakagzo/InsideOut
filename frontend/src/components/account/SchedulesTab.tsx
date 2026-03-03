@@ -59,6 +59,9 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
     : [];
 
   const handleRequestChange = (schedule: Schedule) => {
+    if (isAdmin) {
+      return;
+    }
     setSelectedSchedule(schedule);
     setChangeSubject("");
     setChangeComments("");
@@ -76,7 +79,15 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
         dispatch(fetchSchedules());
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to refresh meeting link.";
+      const message =
+        (
+          error as {
+            response?: { data?: { message?: string } };
+            message?: string;
+          }
+        )?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        "Unable to refresh meeting link.";
       toast.error(message);
     } finally {
       setRefreshingEnrollmentId(null);
@@ -105,7 +116,7 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
         }),
       ).unwrap();
 
-      toast.success(`Request sent. ${result.queued_count} admin notification(s) queued.`);
+      toast.success(`Request sent successfully. ${result.queued_count} admin notification(s) queued.`);
       setChangeRequestOpen(false);
       setSelectedSchedule(null);
       setChangeSubject("");
@@ -217,9 +228,11 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
                         {refreshingEnrollmentId === event.enrollment_id ? "Refreshing Link..." : "Refresh Link"}
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" className="w-full" onClick={() => handleRequestChange(event)}>
-                      <Send className="w-4 h-4 mr-1" /> Request Change
-                    </Button>
+                    {!isAdmin && (
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => handleRequestChange(event)}>
+                        <Send className="w-4 h-4 mr-1" /> Request Change
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -234,7 +247,7 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
         </div>
       </div>
 
-      <Dialog open={changeRequestOpen} onOpenChange={setChangeRequestOpen}>
+      {!isAdmin && <Dialog open={changeRequestOpen} onOpenChange={setChangeRequestOpen}>
         <DialogContent className="bg-card sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-card-foreground">Request Schedule Change</DialogTitle>
@@ -284,7 +297,7 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </div>
   );
 };

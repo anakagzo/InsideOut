@@ -36,6 +36,7 @@ class EnrollmentSchema(Schema):
 class ScheduleItemSchema(Schema):
     """Schema for individual schedule items within a grouped date"""
     id = fields.Int(dump_only=True)
+    enrollment_id = fields.Int(dump_only=True)
     date = fields.Date(dump_only=True)
     start_time = fields.Time(dump_only=True)
     end_time = fields.Time(dump_only=True)

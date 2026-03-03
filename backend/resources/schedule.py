@@ -9,7 +9,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from models import Schedule, User, Enrollment
 from schemas import ScheduleSchema, ScheduleChangeRequestSchema, ScheduleChangeRequestResponseSchema
 from db import db
-from utils.decorators import admin_required
+from utils.decorators import admin_required, student_required
 from utils.notifications import notify_schedule_change_requested, notify_schedule_created
 from utils.zoom import create_zoom_meeting_link
 
@@ -58,7 +58,8 @@ def _create_shared_zoom_link(enrollment: Enrollment) -> str:
 
 
 def _sync_enrollment_schedule_window(enrollment: Enrollment):
-    schedule_dates = [schedule.date for schedule in enrollment.schedules if schedule.date is not None]
+    enrollment_schedules = cast(list[Any], enrollment.schedules)
+    schedule_dates = [schedule.date for schedule in enrollment_schedules if schedule.date is not None]
     if not schedule_dates:
         return
 
@@ -113,6 +114,12 @@ class ScheduleList(MethodView):
         
         enrollment_id = enrollment_ids.pop()
         enrollment = _get_enrollment_or_404(enrollment_id)
+        had_existing_schedules = len(cast(list[Any], enrollment.schedules)) > 0
+        onboarding_flags = {item.get("is_onboarding_booking") for item in data}
+        explicit_onboarding_flags = {flag for flag in onboarding_flags if flag is not None}
+        if len(explicit_onboarding_flags) > 1:
+            abort(400, message="All schedules in a request must use the same onboarding flag.")
+        requested_onboarding_booking = next(iter(explicit_onboarding_flags), False)
 
         if enrollment.status == "completed":
             abort(409, message="Enrollment is completed. Set it to active before adding new schedules.")
@@ -125,19 +132,20 @@ class ScheduleList(MethodView):
 
         schedules = []
         for item in data:
+            schedule_payload = {key: value for key, value in item.items() if key != "is_onboarding_booking"}
             overlapping = (
                 Schedule.query
                 .filter(
-                    Schedule.date == item["date"],
-                    Schedule.start_time < item["end_time"],
-                    Schedule.end_time > item["start_time"],
+                    Schedule.date == schedule_payload["date"],
+                    Schedule.start_time < schedule_payload["end_time"],
+                    Schedule.end_time > schedule_payload["start_time"],
                 )
                 .first()
             )
             if overlapping:
                 abort(409, message="Selected time overlaps an existing scheduled class.")
 
-            schedule = Schedule(**item)
+            schedule = Schedule(**schedule_payload)
             schedule.zoom_link = shared_zoom_link
             db.session.add(schedule)
             schedules.append(schedule)
@@ -147,11 +155,28 @@ class ScheduleList(MethodView):
 
         queued_count = 0
         if enrollment.status != "completed":
+            student = cast(User, enrollment.student)
+            is_valid_onboarding_booking = (
+                requested_onboarding_booking
+                and user.role != "admin"
+                and enrollment.student_id == user_id
+                and not had_existing_schedules
+                and len(schedules) == 1
+            )
+            if requested_onboarding_booking and not is_valid_onboarding_booking:
+                abort(400, message="Onboarding booking flag is only valid for a student's first enrollment session.")
+
+            queued_to_admins = (
+                user.role != "admin"
+                and enrollment.student_id == user_id
+                and is_valid_onboarding_booking
+            )
             queued_count = notify_schedule_created(
-                student=enrollment.student,
+                student=student,
                 course_title=enrollment.course.title,
                 schedule_count=len(schedules),
                 first_date=min(s.date for s in schedules) if schedules else None,
+                include_admins=queued_to_admins,
             )
         logger.info(
             "Schedule notifications queued",
@@ -187,6 +212,7 @@ class ScheduleChangeRequest(MethodView):
     """Student action to request schedule changes from admins."""
 
     @jwt_required()
+    @student_required
     @blp.arguments(ScheduleChangeRequestSchema)
     @blp.response(200, ScheduleChangeRequestResponseSchema)
     def post(self, data, schedule_id):

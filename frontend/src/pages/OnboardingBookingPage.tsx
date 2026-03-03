@@ -405,6 +405,7 @@ const OnboardingBookingPage = () => {
             date: format(selectedDate, "yyyy-MM-dd"),
             start_time: normalizeTimeForApi(slot.start),
             end_time: normalizeTimeForApi(slot.end),
+            is_onboarding_booking: true,
           },
         ]),
       ).unwrap();

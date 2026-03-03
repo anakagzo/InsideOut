@@ -6,6 +6,7 @@ class ScheduleSchema(Schema):
     date = fields.Date(required=True)
     start_time = fields.Time(required=True)
     end_time = fields.Time(required=True)
+    is_onboarding_booking = fields.Bool(load_only=True, allow_none=True, load_default=None)
     zoom_link = fields.Str(dump_only=True)
     status = fields.Str()
 
