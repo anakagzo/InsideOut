@@ -12,3 +12,4 @@ pytest-cov
 stripe
 APScheduler
 sendgrid
+boto3
