@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_REPOSITORY: ${{ github.repository }}
+      PORT: '$PORT'
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
       ONBOARDING_TOKEN_SECRET: ${{ secrets.ONBOARDING_TOKEN_SECRET }}

@@ -12,7 +12,8 @@ services:
       deploy_on_push: false
     source_dir: backend
     build_command: pip install -r requirements.txt
-    run_command: sh -c 'flask db upgrade && exec gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 "app:create_app()"'
+    run_command: >-
+      sh -c 'flask db upgrade && exec gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 "app:create_app()"'
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
     health_check:
