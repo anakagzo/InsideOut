@@ -18,6 +18,8 @@ services:
     instance_size_slug: apps-s-1vcpu-1gb
     health_check:
       http_path: /swagger-ui
+    routes:
+      - path: /api
     envs:
       - key: APP_ENV
         value: production
