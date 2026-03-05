@@ -56,7 +56,14 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci --include=optional --no-audit --no-fund
+
+      - name: Verify frontend toolchain
+        run: |
+          node -v
+          npm -v
+          npm ls vite vitest eslint --depth=0
+          node -e "for (const pkg of ['vite','rollup','@swc/core']) { try { console.log(pkg + ' -> ' + require.resolve(pkg)); } catch (err) { console.error('Missing package:', pkg); console.error(err.message); process.exitCode = 1; } }"
 
       - name: Lint frontend
         run: npm run lint
@@ -65,4 +72,4 @@ jobs:
         run: npm run test
 
       - name: Build frontend
-        run: npm run build
+        run: npm run build -- --debug
