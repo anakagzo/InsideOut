@@ -1,0 +1,209 @@
+name: insideout
+region: lon
+features:
+  - buildpack-stack=ubuntu-22
+
+services:
+  - name: api
+    environment_slug: python
+    github:
+      repo: ${GITHUB_REPOSITORY}
+      branch: main
+      deploy_on_push: false
+    source_dir: backend
+    build_command: pip install -r requirements.txt
+    run_command: sh -c 'flask db upgrade && exec gunicorn --bind 0.0.0.0:${PORT} --workers 1 --threads 4 --timeout 120 "app:create_app()"'
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    health_check:
+      http_path: /swagger-ui
+    envs:
+      - key: APP_ENV
+        value: production
+        scope: RUN_TIME
+      - key: FLASK_APP
+        value: app
+        scope: RUN_TIME
+      - key: DATABASE_URL
+        value: ${DATABASE_URL}
+        scope: RUN_TIME
+        type: secret
+      - key: JWT_SECRET_KEY
+        value: ${JWT_SECRET_KEY}
+        scope: RUN_TIME
+        type: secret
+      - key: ONBOARDING_TOKEN_SECRET
+        value: ${ONBOARDING_TOKEN_SECRET}
+        scope: RUN_TIME
+        type: secret
+      - key: FRONTEND_BASE_URL
+        value: ${FRONTEND_BASE_URL}
+        scope: RUN_TIME
+      - key: CORS_ORIGINS
+        value: ${CORS_ORIGINS}
+        scope: RUN_TIME
+      - key: LOG_LEVEL
+        value: INFO
+        scope: RUN_TIME
+      - key: LOG_FORMAT
+        value: '%(asctime)s %(levelname)s [%(name)s] %(message)s'
+        scope: RUN_TIME
+      - key: LOG_DATE_FORMAT
+        value: "%Y-%m-%d %H:%M:%S"
+        scope: RUN_TIME
+
+      - key: JWT_REFRESH_ROTATE_LEEWAY_SECONDS
+        value: "86400"
+        scope: RUN_TIME
+      - key: PASSWORD_HASH_ROUNDS
+        value: "390000"
+        scope: RUN_TIME
+      - key: PASSWORD_HASH_SALT_SIZE
+        value: "16"
+        scope: RUN_TIME
+      - key: ONBOARDING_TOKEN_TTL_SECONDS
+        value: "172800"
+        scope: RUN_TIME
+
+      - key: MAX_MEDIA_UPLOAD_MB
+        value: "50"
+        scope: RUN_TIME
+      - key: ALLOWED_IMAGE_EXTENSIONS
+        value: "jpg,jpeg,png,gif,webp"
+        scope: RUN_TIME
+      - key: ALLOWED_VIDEO_EXTENSIONS
+        value: "mp4,mov,avi,mkv,webm"
+        scope: RUN_TIME
+
+      # Media (DigitalOcean Spaces / S3-compatible)
+      - key: MEDIA_STORAGE_DRIVER
+        value: digitalocean
+        scope: RUN_TIME
+      - key: MEDIA_LOCAL_UPLOAD_DIR
+        value: uploads
+        scope: RUN_TIME
+      - key: MEDIA_BASE_URL
+        value: /media
+        scope: RUN_TIME
+      - key: DEFAULT_COURSE_IMAGE_URL
+        value: /media/defaults/course-default.png
+        scope: RUN_TIME
+      - key: MEDIA_PUBLIC_BASE_URL
+        value: ${MEDIA_PUBLIC_BASE_URL}
+        scope: RUN_TIME
+      - key: MEDIA_BUCKET_NAME
+        value: ${MEDIA_BUCKET_NAME}
+        scope: RUN_TIME
+      - key: MEDIA_S3_REGION
+        value: ${MEDIA_S3_REGION}
+        scope: RUN_TIME
+      - key: MEDIA_S3_ENDPOINT_URL
+        value: ${MEDIA_S3_ENDPOINT_URL}
+        scope: RUN_TIME
+      - key: MEDIA_S3_ACCESS_KEY
+        value: ${MEDIA_S3_ACCESS_KEY}
+        scope: RUN_TIME
+        type: secret
+      - key: MEDIA_S3_SECRET_KEY
+        value: ${MEDIA_S3_SECRET_KEY}
+        scope: RUN_TIME
+        type: secret
+
+      # Payments
+      - key: STRIPE_SECRET_KEY
+        value: ${STRIPE_SECRET_KEY}
+        scope: RUN_TIME
+        type: secret
+      - key: STRIPE_PUBLISHABLE_KEY
+        value: ${STRIPE_PUBLISHABLE_KEY}
+        scope: RUN_TIME
+      - key: STRIPE_WEBHOOK_SECRET
+        value: ${STRIPE_WEBHOOK_SECRET}
+        scope: RUN_TIME
+        type: secret
+      - key: STRIPE_CURRENCY
+        value: gbp
+        scope: RUN_TIME
+
+      # Zoom meetings for schedules
+      - key: ZOOM_CLIENT_ID
+        value: ${ZOOM_CLIENT_ID}
+        scope: RUN_TIME
+      - key: ZOOM_CLIENT_SECRET
+        value: ${ZOOM_CLIENT_SECRET}
+        scope: RUN_TIME
+        type: secret
+      - key: ZOOM_ACCOUNT_ID
+        value: ${ZOOM_ACCOUNT_ID}
+        scope: RUN_TIME
+      - key: ZOOM_USER_ID
+        value: me
+        scope: RUN_TIME
+      - key: ZOOM_TIMEZONE
+        value: UTC
+        scope: RUN_TIME
+      - key: ZOOM_API_TIMEOUT_SECONDS
+        value: "10"
+        scope: RUN_TIME
+
+      # Email
+      - key: SENDGRID_API_KEY
+        value: ${SENDGRID_API_KEY}
+        scope: RUN_TIME
+        type: secret
+      - key: EMAIL_FROM
+        value: ${EMAIL_FROM}
+        scope: RUN_TIME
+
+      # Scheduler note: keep instance_count=1 unless scheduler is moved to a dedicated worker.
+      - key: EMAIL_SCHEDULER_ENABLED
+        value: "true"
+        scope: RUN_TIME
+      - key: EMAIL_MAX_RETRIES
+        value: "3"
+        scope: RUN_TIME
+      - key: EMAIL_RETRY_INTERVAL_SECONDS
+        value: "30"
+        scope: RUN_TIME
+      - key: EMAIL_BATCH_SIZE
+        value: "50"
+        scope: RUN_TIME
+      - key: EMAIL_PROCESSING_CLAIM_TTL_SECONDS
+        value: "300"
+        scope: RUN_TIME
+
+      # Meeting reminder controls
+      - key: MEETING_REMINDER_CHECK_INTERVAL_SECONDS
+        value: "30"
+        scope: RUN_TIME
+      - key: MEETING_REMINDER_WINDOW_SECONDS
+        value: "90"
+        scope: RUN_TIME
+      - key: MEETING_REMINDER_DEFAULT_LEAD_MINUTES
+        value: "60"
+        scope: RUN_TIME
+      - key: MEETING_REMINDER_MIN_LEAD_MINUTES
+        value: "30"
+        scope: RUN_TIME
+      - key: MEETING_REMINDER_MAX_LEAD_MINUTES
+        value: "1440"
+        scope: RUN_TIME
+      - key: ZOOM_MOCK_LINK_FALLBACK_ENABLED
+        value: "false"
+        scope: RUN_TIME
+
+static_sites:
+  - name: web
+    environment_slug: node-js
+    github:
+      repo: ${GITHUB_REPOSITORY}
+      branch: main
+      deploy_on_push: false
+    source_dir: frontend
+    build_command: npm install && npm run build
+    output_dir: dist
+    catchall_document: index.html
+    envs:
+      - key: VITE_API_BASE_URL
+        value: ${VITE_API_BASE_URL}
+        scope: BUILD_TIME

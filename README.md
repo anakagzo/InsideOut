@@ -29,7 +29,7 @@ InsideOut is a full-stack e-learning platform with a Flask REST API backend and 
 ## Prerequisites
 
 - Python 3.11+ (3.12 recommended)
-- Node.js 18+ (or Bun)
+- Node.js 20.9.x (or Bun)
 - Git
 
 ## Quick start
@@ -269,3 +269,53 @@ npm run test
 - Configure a production database via `DATABASE_URL`
 - Configure cloud media variables if not using local file storage
 - Use Gunicorn (already included in requirements) behind a reverse proxy
+
+## CI/CD (GitHub Actions + DigitalOcean)
+
+This repository now includes:
+
+- `.github/workflows/ci.yml` — runs backend tests and frontend lint/test/build on pushes and pull requests.
+- `.github/workflows/deploy.yml` — deploys automatically to DigitalOcean App Platform after CI succeeds on `main`.
+- `.do/app.yaml` — App Platform spec for monorepo deployment (`backend/` service + `frontend/` static site).
+
+### Required GitHub repository secrets
+
+Add these secrets in GitHub: **Settings → Secrets and variables → Actions**.
+
+Core deployment secrets:
+
+- `DIGITALOCEAN_ACCESS_TOKEN`
+- `DATABASE_URL`
+- `JWT_SECRET_KEY`
+- `ONBOARDING_TOKEN_SECRET`
+- `FRONTEND_BASE_URL`
+- `CORS_ORIGINS`
+- `VITE_API_BASE_URL`
+
+Optional feature secrets (enable related integrations):
+
+- `MEDIA_PUBLIC_BASE_URL`
+- `MEDIA_BUCKET_NAME`
+- `MEDIA_S3_REGION`
+- `MEDIA_S3_ENDPOINT_URL`
+- `MEDIA_S3_ACCESS_KEY`
+- `MEDIA_S3_SECRET_KEY`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `ZOOM_CLIENT_ID`
+- `ZOOM_CLIENT_SECRET`
+- `ZOOM_ACCOUNT_ID`
+- `SENDGRID_API_KEY`
+- `EMAIL_FROM`
+
+### First deployment flow
+
+1. Commit and push these workflow/spec files to `main`.
+2. Add the required GitHub secrets listed above.
+3. Push a new commit to `main` (or re-run the latest CI workflow).
+4. GitHub Actions will run `CI`, then `Deploy`, and provision/update the app from `.do/app.yaml`.
+
+### Scaling note
+
+The backend currently runs an in-process APScheduler. Keep backend `instance_count: 1` unless scheduler jobs are moved to a dedicated worker process.
