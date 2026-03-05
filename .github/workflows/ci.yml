@@ -65,6 +65,12 @@ jobs:
           npm ls vite vitest eslint --depth=0
           node -e "for (const pkg of ['vite','rollup','@swc/core']) { try { console.log(pkg + ' -> ' + require.resolve(pkg)); } catch (err) { console.error('Missing package:', pkg); console.error(err.message); process.exitCode = 1; } }"
 
+      - name: Ensure Linux native build deps
+        if: runner.os == 'Linux'
+        run: |
+          node -e "const pkgs=['@rollup/rollup-linux-x64-gnu','@swc/core-linux-x64-gnu']; const missing=pkgs.filter((pkg)=>{ try { require.resolve(pkg); return false; } catch { return true; } }); if (missing.length === 0) { console.log('Native deps already present.'); process.exit(0); } console.log('Missing optional native deps:', missing.join(', ')); process.exit(2);" || npm install --no-save --no-audit --no-fund @rollup/rollup-linux-x64-gnu @swc/core-linux-x64-gnu
+          node -e "for (const pkg of ['@rollup/rollup-linux-x64-gnu','@swc/core-linux-x64-gnu']) { console.log(pkg + ' -> ' + require.resolve(pkg)); }"
+
       - name: Lint frontend
         run: npm run lint
 
