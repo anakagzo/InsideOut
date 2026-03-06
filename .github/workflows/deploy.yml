@@ -94,3 +94,50 @@ jobs:
           app_spec_location: .do/app.yaml
           print_build_logs: true
           print_deploy_logs: true
+
+      - name: Post-deploy smoke checks
+        run: |
+          set -euo pipefail
+
+          api_base_url="${VITE_API_BASE_URL%/}"
+          frontend_url="${FRONTEND_BASE_URL%/}"
+          api_health_url="${api_base_url}/health"
+
+          max_attempts=20
+          sleep_seconds=15
+          api_ok=0
+          frontend_ok=0
+
+          echo "API health URL: ${api_health_url}"
+          echo "Frontend URL: ${frontend_url}"
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "Smoke check attempt ${attempt}/${max_attempts}"
+
+            api_status=$(curl -sS -o /tmp/api-health.json -w "%{http_code}" --max-time 20 "${api_health_url}" || true)
+            frontend_status=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 "${frontend_url}" || true)
+
+            if [ "$api_status" = "200" ] && grep -Eiq '"status"[[:space:]]*:[[:space:]]*"ok"' /tmp/api-health.json; then
+              api_ok=1
+            fi
+
+            if [ "$frontend_status" = "200" ] || [ "$frontend_status" = "301" ] || [ "$frontend_status" = "302" ] || [ "$frontend_status" = "307" ] || [ "$frontend_status" = "308" ]; then
+              frontend_ok=1
+            fi
+
+            echo "API status: ${api_status}, frontend status: ${frontend_status}"
+
+            if [ "$api_ok" -eq 1 ] && [ "$frontend_ok" -eq 1 ]; then
+              echo "Post-deploy smoke checks passed."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              sleep "$sleep_seconds"
+            fi
+          done
+
+          echo "Post-deploy smoke checks failed after ${max_attempts} attempts." >&2
+          echo "Last API response body:" >&2
+          cat /tmp/api-health.json >&2 || true
+          exit 1

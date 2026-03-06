@@ -69,7 +69,7 @@ class BaseConfig:
     STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
     STRIPE_CURRENCY = os.getenv("STRIPE_CURRENCY", "gbp")
-    FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
+    FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:8080")
     CORS_ORIGINS = [
         origin.strip()
         for origin in os.getenv(
