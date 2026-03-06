@@ -21,7 +21,7 @@ jobs:
     env:
       GITHUB_REPOSITORY: ${{ github.repository }}
       PORT: '$PORT'
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL_POOLER || secrets.DATABASE_URL }}
       JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
       ONBOARDING_TOKEN_SECRET: ${{ secrets.ONBOARDING_TOKEN_SECRET }}
       FRONTEND_BASE_URL: ${{ secrets.FRONTEND_BASE_URL }}
@@ -64,6 +64,28 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Validate DATABASE_URL network reachability
+        run: |
+          db_host=$(python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+
+          print(urlparse(os.environ["DATABASE_URL"]).hostname or "")
+          PY
+          )
+
+          if [ -z "$db_host" ]; then
+            echo "Could not parse DB host from DATABASE_URL" >&2
+            exit 1
+          fi
+
+          if ! getent ahostsv4 "$db_host" >/dev/null; then
+            echo "DATABASE_URL host '$db_host' has no IPv4 address from this runner." >&2
+            echo "For Supabase, use the Session/Transaction Pooler URL and set secret DATABASE_URL_POOLER." >&2
+            echo "Pooler hosts look like: aws-0-<region>.pooler.supabase.com" >&2
+            exit 1
+          fi
 
       - name: Deploy app spec
         uses: digitalocean/app_action/deploy@v2

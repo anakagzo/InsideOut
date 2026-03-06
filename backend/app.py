@@ -143,6 +143,11 @@ def create_app(db_url=None):
 
         return send_from_directory(upload_dir, filename)
 
+    @app.get("/health")
+    def health_check():
+        # Keep this endpoint lightweight and DB-independent for platform readiness probes.
+        return jsonify({"status": "ok"}), 200
+
 
     api.register_blueprint(UserBlueprint)
     api.register_blueprint(ReviewBlueprint)
