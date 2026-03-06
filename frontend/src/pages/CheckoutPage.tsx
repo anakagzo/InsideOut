@@ -287,7 +287,7 @@ const CheckoutPage = () => {
       {/* Success Modal */}
       <Dialog open={showSuccessModal} onOpenChange={handleSuccessModalOpenChange}>
         <DialogContent
-          className="sm:max-w-md [&>button]:hidden"
+          className="sm:max-w-md [&>button:last-of-type]:hidden"
           onEscapeKeyDown={(event) => event.preventDefault()}
           onInteractOutside={(event) => event.preventDefault()}
         >
