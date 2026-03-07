@@ -34,4 +34,5 @@ This project is built with:
 - Development API URL is set in [frontend/.env.development](frontend/.env.development).
 - Production API URL is set in [frontend/.env.production](frontend/.env.production).
 - The frontend reads `VITE_API_BASE_URL` from these files.
+- The frontend also reads `VITE_SITE_URL` for canonical, Open Graph, and Twitter metadata.
 

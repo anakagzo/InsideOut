@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Inside Out Programme</title>
+  <desc id="desc">Support for understanding emotional needs of neurodivergent children.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="56" y="56" width="1088" height="518" rx="24" fill="rgba(255,255,255,0.08)"/>
+  <text x="90" y="250" fill="#ffffff" font-family="Georgia, serif" font-size="78" font-weight="700">Inside Out Programme</text>
+  <text x="90" y="330" fill="#e2e8f0" font-family="Verdana, sans-serif" font-size="34">Behaviour is communication. Listen differently.</text>
+  <text x="90" y="390" fill="#cbd5e1" font-family="Verdana, sans-serif" font-size="28">Support for parents and professionals of neurodivergent children.</text>
+</svg>

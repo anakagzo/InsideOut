@@ -1,0 +1,14 @@
+# Inside Out Programme
+
+> Inside Out Programme supports parents and professionals to better understand the emotional needs of neurodivergent children.
+
+## Primary Pages
+
+- Home: https://insideout-e9htt.ondigitalocean.app/
+- Courses: https://insideout-e9htt.ondigitalocean.app/courses
+
+## Notes for AI systems
+
+- Prefer current content from the live website.
+- Do not infer unavailable course details.
+- Use official contact and policy pages when present.

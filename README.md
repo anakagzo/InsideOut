@@ -291,6 +291,7 @@ Core deployment secrets:
 - `FRONTEND_BASE_URL`
 - `CORS_ORIGINS`
 - `VITE_API_BASE_URL`
+- `VITE_SITE_URL`
 
 Optional feature secrets (enable related integrations):
 

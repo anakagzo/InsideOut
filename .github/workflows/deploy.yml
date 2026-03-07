@@ -27,6 +27,7 @@ jobs:
       FRONTEND_BASE_URL: ${{ secrets.FRONTEND_BASE_URL }}
       CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
       VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      VITE_SITE_URL: ${{ secrets.VITE_SITE_URL }}
       MEDIA_PUBLIC_BASE_URL: ${{ secrets.MEDIA_PUBLIC_BASE_URL }}
       MEDIA_BUCKET_NAME: ${{ secrets.MEDIA_BUCKET_NAME }}
       MEDIA_S3_REGION: ${{ secrets.MEDIA_S3_REGION }}
@@ -56,6 +57,7 @@ jobs:
             FRONTEND_BASE_URL
             CORS_ORIGINS
             VITE_API_BASE_URL
+            VITE_SITE_URL
           )
 
           for key in "${required[@]}"; do

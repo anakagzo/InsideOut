@@ -1,7 +1,19 @@
+User-agent: *
+Allow: /
+
 User-agent: Googlebot
 Allow: /
 
 User-agent: Bingbot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
 Allow: /
 
 User-agent: Twitterbot
@@ -10,5 +22,4 @@ Allow: /
 User-agent: facebookexternalhit
 Allow: /
 
-User-agent: *
-Allow: /
+Sitemap: https://insideout-e9htt.ondigitalocean.app/sitemap.xml
