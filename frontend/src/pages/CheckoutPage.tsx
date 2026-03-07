@@ -29,7 +29,7 @@ const formatPrice = (price: string | number | null | undefined): string => {
 
 const CheckoutPage = () => {
   const { id } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const courseId = id ? Number(id) : NaN;
   const isCourseIdValid = Number.isInteger(courseId) && courseId > 0;
@@ -101,6 +101,7 @@ const CheckoutPage = () => {
 
     finalizeStripePayment(sessionId)
       .then(() => {
+        setSearchParams({}, { replace: true });
         setShowSuccessModal(true);
       })
       .catch((error: unknown) => {
@@ -110,7 +111,7 @@ const CheckoutPage = () => {
         }
         setCheckoutError("Unable to finalize payment right now.");
       });
-  }, [finalizeStripePayment, isCourseIdValid, searchParams]);
+  }, [finalizeStripePayment, isCourseIdValid, searchParams, setSearchParams]);
 
   const isProcessing = createCheckoutStatus === "loading" || finalizeCheckoutStatus === "loading";
 

@@ -1,5 +1,6 @@
 """Notification dispatch helpers built on top of queued email delivery."""
 
+import hashlib
 import logging
 from datetime import date, datetime, timedelta
 from datetime import UTC
@@ -90,10 +91,22 @@ def _meeting_reminder_lead_minutes(user: User) -> int:
     return max(min_lead, min(numeric, max_lead))
 
 
-def notify_payment_confirmed(student: User, course_title: str, onboarding_booking_url: str | None = None) -> int:
+def _payment_notification_reference_key(stripe_session_id: str, recipient_id: int, recipient_role: str) -> str:
+    # Hash the Stripe session id to keep reference keys short and storage-safe.
+    session_hash = hashlib.sha256(stripe_session_id.encode("utf-8")).hexdigest()[:24]
+    return f"payment-confirmed:{session_hash}:{recipient_id}:{recipient_role}"
+
+
+def notify_payment_confirmed(
+    student: User,
+    course_title: str,
+    onboarding_booking_url: str | None = None,
+    stripe_session_id: str | None = None,
+) -> int:
     recipients = _student_and_admin_recipients(student)
     queued_count = 0
     outcome_counts = {"queued": 0, "skipped": 0, "error": 0}
+    normalized_session_id = (stripe_session_id or "").strip()
 
     for recipient in recipients:
         recipient_role = "student" if recipient.id == student.id else "admin"
@@ -118,7 +131,21 @@ def notify_payment_confirmed(student: User, course_title: str, onboarding_bookin
                 f"<p><strong>Student:</strong> {student.first_name} {student.last_name}</p>"
             )
 
-        outcome = _queue_user_notification_outcome(recipient, "notify_on_new_payment", subject, body)
+        reference_key = None
+        if normalized_session_id:
+            reference_key = _payment_notification_reference_key(
+                normalized_session_id,
+                recipient.id,
+                recipient_role,
+            )
+
+        outcome = _queue_user_notification_outcome(
+            recipient,
+            "notify_on_new_payment",
+            subject,
+            body,
+            reference_key=reference_key,
+        )
         if outcome == "queued":
             queued_count += 1
 

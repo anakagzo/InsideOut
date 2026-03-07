@@ -127,11 +127,13 @@ def _finalize_paid_checkout_session(session, expected_user_id=None):
 	if not enrollment:
 		abort(500, message="Unable to create enrollment.")
 
+	stripe_session_id = str(_session_value(session, "id", "") or "").strip()
+
 	onboarding_token = _create_onboarding_token(
 		user_id=session_user_id,
 		course_id=course.id,
 		enrollment_id=enrollment.id,
-		stripe_session_id=_session_value(session, "id", ""),
+		stripe_session_id=stripe_session_id,
 	)
 
 	frontend_base_url = current_app.config.get("FRONTEND_BASE_URL", "http://localhost:8080")
@@ -141,6 +143,7 @@ def _finalize_paid_checkout_session(session, expected_user_id=None):
 		user,
 		course.title,
 		onboarding_booking_url=onboarding_booking_url,
+		stripe_session_id=stripe_session_id or None,
 	)
 	logger.info(
 		"Payment notifications queued",

@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from db import db
-from models.notification import EmailNotificationSettings
+from models.notification import EmailNotification, EmailNotificationSettings
 
 
 def _mock_stripe(monkeypatch, payment_module, *, create_session=None, retrieve_session=None):
@@ -261,7 +261,11 @@ def test_finalize_payment_queues_email_when_enabled(
     import utils.notifications as notifications_module
 
     queued = []
-    monkeypatch.setattr(notifications_module, "queue_email", lambda to_email, subject, body: queued.append((to_email, subject, body)))
+    monkeypatch.setattr(
+        notifications_module,
+        "queue_email",
+        lambda to_email, subject, body, reference_key=None: queued.append((to_email, subject, body, reference_key)),
+    )
 
     admin = create_user(role="admin", email="notify-payment-admin@example.com")
     user = create_user(role="student", email="notify-payment@example.com")
@@ -294,6 +298,7 @@ def test_finalize_payment_queues_email_when_enabled(
     student_emails = [item for item in queued if item[0] == user.email]
     assert student_emails
     assert "Book your onboarding meeting now" in student_emails[0][2]
+    assert all(item[3] for item in queued)
 
 
 def test_finalize_payment_skips_email_when_disabled(
@@ -308,7 +313,11 @@ def test_finalize_payment_skips_email_when_disabled(
     import utils.notifications as notifications_module
 
     queued = []
-    monkeypatch.setattr(notifications_module, "queue_email", lambda to_email, subject, body: queued.append((to_email, subject, body)))
+    monkeypatch.setattr(
+        notifications_module,
+        "queue_email",
+        lambda to_email, subject, body, reference_key=None: queued.append((to_email, subject, body, reference_key)),
+    )
 
     admin = create_user(role="admin", email="notify-off-admin@example.com")
     user = create_user(role="student", email="notify-off@example.com")
@@ -343,6 +352,58 @@ def test_finalize_payment_skips_email_when_disabled(
     assert response.status_code == 200
     recipients = {item[0] for item in queued}
     assert user.email not in recipients
+    assert admin.email in recipients
+
+
+def test_finalize_payment_does_not_duplicate_notification_emails_for_same_session(
+    client,
+    app,
+    create_user,
+    create_course,
+    auth_headers,
+    monkeypatch,
+):
+    import resources.payment as payment_resource
+
+    admin = create_user(role="admin", email="notify-idempotent-admin@example.com")
+    user = create_user(role="student", email="notify-idempotent-student@example.com")
+    course = create_course(title="Idempotent Notify Course", price="110.00")
+
+    session = SimpleNamespace(
+        id="cs_notify_idempotent_123",
+        payment_status="paid",
+        metadata={"user_id": str(user.id), "course_id": str(course.id)},
+    )
+    _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
+
+    app.config.update(
+        STRIPE_SECRET_KEY="sk_test_123",
+        STRIPE_PUBLISHABLE_KEY="pk_test_123",
+        ONBOARDING_TOKEN_SECRET="token-secret",
+    )
+
+    first_response = client.post(
+        "/payments/stripe/finalize",
+        json={"session_id": "cs_notify_idempotent_123"},
+        headers=auth_headers(user),
+    )
+    second_response = client.post(
+        "/payments/stripe/finalize",
+        json={"session_id": "cs_notify_idempotent_123"},
+        headers=auth_headers(user),
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+
+    with app.app_context():
+        payment_notifications = EmailNotification.query.filter(
+            EmailNotification.subject.in_(["Payment confirmed", "Student payment confirmed"])
+        ).all()
+
+    recipients = {notification.to_email for notification in payment_notifications}
+    assert len(payment_notifications) == 2
+    assert user.email in recipients
     assert admin.email in recipients
 
 
