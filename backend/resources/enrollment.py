@@ -28,6 +28,25 @@ def _get_enrollment_or_404(enrollment_id):
     return enrollment
 
 
+def _format_student_name(student: User | None, fallback_student_id: int | None = None) -> str:
+    if student is None:
+        if fallback_student_id is not None:
+            return f"Student #{fallback_student_id}"
+        return "Student"
+
+    first_name = (student.first_name or "").strip()
+    last_name = (student.last_name or "").strip()
+    full_name = f"{first_name} {last_name}".strip()
+    if full_name:
+        return full_name
+
+    email = (student.email or "").strip()
+    if email:
+        return email
+
+    return f"Student #{student.id}"
+
+
 def _sync_enrollment_schedule_window(enrollment: Enrollment) -> bool:
     """Sync enrollment start/end dates and auto status from associated schedules."""
     enrollment_schedules = cast(list[Any], enrollment.schedules)
@@ -370,9 +389,11 @@ class EnrollmentSchedules(MethodView):
         user = db.session.get(User, user_id)
         if not user:
             abort(404, message="User not found.")
+
+        is_admin = user.role == "admin"
         
         enrollments = Enrollment.query
-        if user.role != "admin":  # Only filter by student_id for non-admin users
+        if not is_admin:  # Only filter by student_id for non-admin users
             enrollments = enrollments.filter_by(student_id=user_id).all()
         else:
             enrollments = enrollments.all()
@@ -383,7 +404,7 @@ class EnrollmentSchedules(MethodView):
         for enrollment in enrollments:
             for schedule in enrollment.schedules:
                 date_key = schedule.date.isoformat()  # Use ISO format for date key
-                schedules_by_date[date_key].append({
+                schedule_payload = {
                     "id": schedule.id,
                     "enrollment_id": enrollment.id,
                     "course_title": enrollment.course.title if enrollment.course else None,
@@ -392,7 +413,14 @@ class EnrollmentSchedules(MethodView):
                     "end_time": schedule.end_time,
                     "zoom_link": schedule.zoom_link,
                     "status": schedule.status
-                })
+                }
+                if is_admin:
+                    schedule_payload["student_name"] = _format_student_name(
+                        enrollment.student,
+                        fallback_student_id=enrollment.student_id,
+                    )
+
+                schedules_by_date[date_key].append(schedule_payload)
         
         # Convert to list of dicts with 'date' and 'schedules' keys
         result = [

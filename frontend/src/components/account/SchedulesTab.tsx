@@ -86,6 +86,14 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
     return "Unavailable";
   };
 
+  const resolveStudentName = (schedule: Schedule): string => {
+    const studentName = schedule.student_name?.trim();
+    if (studentName) {
+      return studentName;
+    }
+    return "Student unavailable";
+  };
+
   const scheduledDates = schedules.map((s) => parseISO(s.date));
 
   const eventsForSelectedDate = selectedDate
@@ -219,6 +227,11 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
                       <p className="text-sm text-muted-foreground">
                         Enrollment #<span className="text-card-foreground">{resolveEnrollmentLabel(event)}</span>
                       </p>
+                      {isAdmin && (
+                        <p className="text-sm text-muted-foreground">
+                          Student: <span className="text-card-foreground">{resolveStudentName(event)}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 

@@ -173,6 +173,7 @@ def test_schedule_creation_updates_enrollment_dates_and_status(
     assert grouped_payload[0]["date"] == future_date.isoformat()
     assert grouped_payload[0]["schedules"][0]["enrollment_id"] == enrollment.id
     assert grouped_payload[0]["schedules"][0]["course_title"] == course.title
+    assert "student_name" not in grouped_payload[0]["schedules"][0]
 
     schedules_response = client.get("/schedules/", headers=auth_headers(student))
     assert schedules_response.status_code == 200
@@ -186,6 +187,37 @@ def test_schedule_creation_updates_enrollment_dates_and_status(
     enrollment_payload = enrollment_response.get_json()
     assert enrollment_payload["start_date"].startswith(future_date.isoformat())
     assert enrollment_payload["end_date"].startswith(future_date.isoformat())
+
+
+def test_admin_grouped_schedules_include_student_name(
+    client,
+    create_user,
+    create_course,
+    create_enrollment,
+    create_schedule,
+    auth_headers,
+):
+    admin = create_user(role="admin")
+    student = create_user(
+        email="grouped-schedules-student@example.com",
+        first_name="Ada",
+        last_name="Lovelace",
+    )
+    course = create_course(title="Python Basics")
+    enrollment = create_enrollment(student.id, course.id, status="active")
+    target_date = date.today() + timedelta(days=4)
+    create_schedule(enrollment.id, date=target_date)
+
+    response = client.get("/enrollments/schedules", headers=auth_headers(admin))
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert len(payload) == 1
+    assert payload[0]["date"] == target_date.isoformat()
+    assert len(payload[0]["schedules"]) == 1
+    assert payload[0]["schedules"][0]["enrollment_id"] == enrollment.id
+    assert payload[0]["schedules"][0]["course_title"] == course.title
+    assert payload[0]["schedules"][0]["student_name"] == "Ada Lovelace"
 
 
 def test_schedule_creation_rejects_mixed_enrollments(

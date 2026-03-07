@@ -38,6 +38,7 @@ class ScheduleItemSchema(Schema):
     id = fields.Int(dump_only=True)
     enrollment_id = fields.Int(dump_only=True)
     course_title = fields.Str(dump_only=True, allow_none=True)
+    student_name = fields.Str(dump_only=True, allow_none=True)
     date = fields.Date(dump_only=True)
     start_time = fields.Time(dump_only=True)
     end_time = fields.Time(dump_only=True)

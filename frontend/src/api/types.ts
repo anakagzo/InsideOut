@@ -206,6 +206,7 @@ export interface Schedule {
   id: number;
   enrollment_id: number;
   course_title?: string;
+  student_name?: string;
   date: string;
   start_time: string;
   end_time: string;
