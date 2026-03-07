@@ -36,6 +36,13 @@ const toMinuteIndex = (value: string) => {
   const [hours, minutes] = normalizeTime(value).split(":").map(Number);
   return hours * 60 + minutes;
 };
+const toScheduleTimestamp = (dateValue: string, timeValue: string) => {
+  const normalizedDate = dateValue.slice(0, 10);
+  const normalizedStartTime = normalizeTime(timeValue);
+  const parsed = parse(`${normalizedDate} ${normalizedStartTime}`, "yyyy-MM-dd HH:mm", new Date());
+  const timestamp = parsed.getTime();
+  return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+};
 const hasOverlap = (
   startMinute: number,
   endMinute: number,
@@ -303,12 +310,52 @@ const OnboardingBookingPage = () => {
     return nonOverlappingSlots;
   }, [availabilityDays, onboardingAvailability, selectedDate, unavailableDateSet]);
 
+  const hasExistingBooking =
+    existingCourseSchedulesStatus === "succeeded" && existingCourseSchedules.length > 0;
+  const existingBookedSchedule = useMemo(() => {
+    if (!hasExistingBooking) {
+      return null;
+    }
+
+    return [...existingCourseSchedules].sort(
+      (left, right) =>
+        toScheduleTimestamp(left.date, left.start_time) - toScheduleTimestamp(right.date, right.start_time),
+    )[0] ?? null;
+  }, [existingCourseSchedules, hasExistingBooking]);
+  const existingBookedDate = useMemo(() => {
+    if (!existingBookedSchedule) {
+      return null;
+    }
+
+    const parsedDate = parse(existingBookedSchedule.date.slice(0, 10), "yyyy-MM-dd", new Date());
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  }, [existingBookedSchedule]);
+  const existingBookedRange = useMemo(() => {
+    if (!existingBookedSchedule) {
+      return null;
+    }
+
+    return {
+      start: normalizeTime(existingBookedSchedule.start_time),
+      end: normalizeTime(existingBookedSchedule.end_time),
+    };
+  }, [existingBookedSchedule]);
+  const shouldShowBookedSuccess =
+    isBooked || (
+      hasExistingBooking &&
+      effectiveTokenValidationStatus === "succeeded" &&
+      isTokenExpired &&
+      !isTokenValid
+    );
+  const displayBookedDate = isBooked ? selectedDate : existingBookedDate;
+  const displayBookedRange = isBooked ? bookedRange : existingBookedRange;
+
   const isExpired =
     !token ||
     effectiveTokenValidationStatus === "failed" ||
     isTokenExpired ||
     !isTokenValid ||
-    existingCourseSchedules.length > 0;
+    (hasExistingBooking && !shouldShowBookedSuccess);
 
   const disabledDays = (date: Date) => {
     const today = startOfDay(new Date());
@@ -497,31 +544,7 @@ const OnboardingBookingPage = () => {
     );
   }
 
-  if (isExpired) {
-    const hasAlreadyBooked = existingCourseSchedules.length > 0;
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center">
-            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">
-              {hasAlreadyBooked ? "Onboarding Already Booked" : "Link Expired"}
-            </h2>
-            <p className="text-muted-foreground mb-4">
-              {hasAlreadyBooked
-                ? "You have already booked your first onboarding meeting."
-                : isRefreshingToken
-                  ? "Refreshing your booking link. Please wait..."
-                  : tokenRefreshError ?? tokenValidationMessage ?? "This booking link has expired or has already been used."}
-            </p>
-            <Button onClick={() => navigate("/account")}>Go to Account</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isBooked) {
+  if (shouldShowBookedSuccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-lg w-full">
@@ -540,13 +563,13 @@ const OnboardingBookingPage = () => {
                 <div className="flex items-center gap-2">
                   <CalendarCheck className="w-4 h-4 text-primary" />
                   <span className="text-foreground">
-                    {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
+                    {displayBookedDate && format(displayBookedDate, "EEEE, MMMM d, yyyy")}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-primary" />
                   <span className="text-foreground">
-                    {bookedRange ? `${bookedRange.start} - ${bookedRange.end}` : "Time confirmed"}
+                    {displayBookedRange ? `${displayBookedRange.start} - ${displayBookedRange.end}` : "Time confirmed"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -563,6 +586,30 @@ const OnboardingBookingPage = () => {
             <Button onClick={() => navigate("/account")} className="w-full">
               Go to My Account
             </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isExpired) {
+    const hasAlreadyBooked = existingCourseSchedules.length > 0;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              {hasAlreadyBooked ? "Onboarding Already Booked" : "Link Expired"}
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              {hasAlreadyBooked
+                ? "You have already booked your first onboarding meeting."
+                : isRefreshingToken
+                  ? "Refreshing your booking link. Please wait..."
+                  : tokenRefreshError ?? tokenValidationMessage ?? "This booking link has expired or has already been used."}
+            </p>
+            <Button onClick={() => navigate("/account")}>Go to Account</Button>
           </CardContent>
         </Card>
       </div>

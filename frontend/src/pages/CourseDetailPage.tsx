@@ -147,6 +147,17 @@ const CourseDetailPage = () => {
   const hasEligibleEnrollment = Boolean(enrolledEnrollment);
   const isAlreadyEnrolled = hasEligibleEnrollment;
   const totalReviewCount = fullReviews.length || previewReviews.length;
+  const displayedAverageRating = useMemo(() => {
+    const fallbackAverage = Number(course?.average_rating ?? 0);
+    if (fullReviews.length === 0) {
+      return Number.isFinite(fallbackAverage) ? fallbackAverage : 0;
+    }
+
+    const totalRating = fullReviews.reduce((sum, review) => sum + Number(review.rating ?? 0), 0);
+    const average = totalRating / fullReviews.length;
+    return Number.isFinite(average) ? average : (Number.isFinite(fallbackAverage) ? fallbackAverage : 0);
+  }, [course?.average_rating, fullReviews]);
+  const displayedAverageRatingLabel = displayedAverageRating.toFixed(1);
   const hasAuthoredReview = Boolean(currentUser && fullReviews.some((review) => review.user_id === currentUser.id));
   const isCourseSaved = useMemo(
     () => savedCourses.some((savedCourse) => savedCourse.id === courseId),
@@ -208,6 +219,7 @@ const CourseDetailPage = () => {
       setReviewRating(5);
       setReviewMessage("Review submitted successfully.");
       dispatch(fetchCourseReviews(courseId));
+      dispatch(fetchCourseDetail(courseId));
     } catch {
       setReviewMessage("Unable to submit review right now.");
     }
@@ -398,8 +410,8 @@ const CourseDetailPage = () => {
                 <TabsContent value="details" className="space-y-6">
                   <div className="flex flex-wrap items-center gap-6">
                     <div className="flex items-center gap-2">
-                      <StarRating rating={course.average_rating} />
-                      <span className="font-semibold text-foreground">{course.average_rating}</span>
+                      <StarRating rating={displayedAverageRating} />
+                      <span className="font-semibold text-foreground">{displayedAverageRatingLabel}</span>
                       <span className="text-sm text-muted-foreground">({totalReviewCount} reviews)</span>
                     </div>
                     <span className="text-2xl font-bold text-primary">£{Number(course.price).toFixed(2)}</span>
@@ -693,7 +705,7 @@ const CourseDetailPage = () => {
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-muted-foreground">Rating</span>
-                    <span className="font-medium text-card-foreground">{course.average_rating}</span>
+                    <span className="font-medium text-card-foreground">{displayedAverageRatingLabel}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-muted-foreground">Reviews</span>
