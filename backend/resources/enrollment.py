@@ -386,6 +386,7 @@ class EnrollmentSchedules(MethodView):
                 schedules_by_date[date_key].append({
                     "id": schedule.id,
                     "enrollment_id": enrollment.id,
+                    "course_title": enrollment.course.title if enrollment.course else None,
                     "date": schedule.date,
                     "start_time": schedule.start_time,
                     "end_time": schedule.end_time,

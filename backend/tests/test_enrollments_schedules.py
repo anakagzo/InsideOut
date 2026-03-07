@@ -172,6 +172,14 @@ def test_schedule_creation_updates_enrollment_dates_and_status(
     assert len(grouped_payload) == 1
     assert grouped_payload[0]["date"] == future_date.isoformat()
     assert grouped_payload[0]["schedules"][0]["enrollment_id"] == enrollment.id
+    assert grouped_payload[0]["schedules"][0]["course_title"] == course.title
+
+    schedules_response = client.get("/schedules/", headers=auth_headers(student))
+    assert schedules_response.status_code == 200
+    schedules_payload = schedules_response.get_json()
+    assert len(schedules_payload) == 1
+    assert schedules_payload[0]["enrollment_id"] == enrollment.id
+    assert schedules_payload[0]["course_title"] == course.title
 
     enrollment_response = client.get(f"/enrollments/{enrollment.id}", headers=auth_headers(student))
     assert enrollment_response.status_code == 200

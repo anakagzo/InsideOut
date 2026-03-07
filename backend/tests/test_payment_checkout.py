@@ -1,7 +1,13 @@
+from decimal import Decimal
 from types import SimpleNamespace
 
 from db import db
+from models import Enrollment
 from models.notification import EmailNotification, EmailNotificationSettings
+
+
+def _course_amount_minor(course) -> int:
+    return int((Decimal(course.price) * 100).quantize(Decimal("1")))
 
 
 def _mock_stripe(monkeypatch, payment_module, *, create_session=None, retrieve_session=None):
@@ -19,6 +25,8 @@ def _mock_stripe(monkeypatch, payment_module, *, create_session=None, retrieve_s
             return SimpleNamespace(
                 id="cs_test_123",
                 payment_status="paid",
+                amount_total=10000,
+                currency="gbp",
                 metadata={"user_id": "1", "course_id": "1"},
             )
 
@@ -119,6 +127,8 @@ def test_finalize_payment_creates_enrollment_and_validates_token(
     session = SimpleNamespace(
         id="cs_finalize_123",
         payment_status="paid",
+        amount_total=_course_amount_minor(course),
+        currency="gbp",
         metadata={"user_id": str(user.id), "course_id": str(course.id)},
     )
     _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
@@ -156,6 +166,87 @@ def test_finalize_payment_creates_enrollment_and_validates_token(
     assert validate_payload["enrollment_id"] == finalize_payload["enrollment_id"]
 
 
+def test_finalize_payment_rejects_when_amount_does_not_match_course_price(
+    client,
+    app,
+    create_user,
+    create_course,
+    auth_headers,
+    monkeypatch,
+):
+    import resources.payment as payment_resource
+
+    user = create_user(role="student", email="stripe-amount-check@example.com")
+    course = create_course(title="Amount Check Course", price="149.00")
+
+    session = SimpleNamespace(
+        id="cs_bad_amount_123",
+        payment_status="paid",
+        amount_total=100,
+        currency="gbp",
+        metadata={"user_id": str(user.id), "course_id": str(course.id)},
+    )
+    _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
+
+    app.config.update(
+        STRIPE_SECRET_KEY="sk_test_123",
+        STRIPE_PUBLISHABLE_KEY="pk_test_123",
+        ONBOARDING_TOKEN_SECRET="token-secret",
+    )
+
+    response = client.post(
+        "/payments/stripe/finalize",
+        json={"session_id": "cs_bad_amount_123"},
+        headers=auth_headers(user),
+    )
+
+    assert response.status_code == 400
+    with app.app_context():
+        enrollment = Enrollment.query.filter_by(student_id=user.id, course_id=course.id).first()
+    assert enrollment is None
+
+
+def test_finalize_payment_rejects_when_currency_does_not_match_configuration(
+    client,
+    app,
+    create_user,
+    create_course,
+    auth_headers,
+    monkeypatch,
+):
+    import resources.payment as payment_resource
+
+    user = create_user(role="student", email="stripe-currency-check@example.com")
+    course = create_course(title="Currency Check Course", price="149.00")
+
+    session = SimpleNamespace(
+        id="cs_bad_currency_123",
+        payment_status="paid",
+        amount_total=_course_amount_minor(course),
+        currency="usd",
+        metadata={"user_id": str(user.id), "course_id": str(course.id)},
+    )
+    _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
+
+    app.config.update(
+        STRIPE_SECRET_KEY="sk_test_123",
+        STRIPE_PUBLISHABLE_KEY="pk_test_123",
+        STRIPE_CURRENCY="gbp",
+        ONBOARDING_TOKEN_SECRET="token-secret",
+    )
+
+    response = client.post(
+        "/payments/stripe/finalize",
+        json={"session_id": "cs_bad_currency_123"},
+        headers=auth_headers(user),
+    )
+
+    assert response.status_code == 400
+    with app.app_context():
+        enrollment = Enrollment.query.filter_by(student_id=user.id, course_id=course.id).first()
+    assert enrollment is None
+
+
 def test_unauthenticated_user_cannot_finalize_payment(
     client,
     app,
@@ -171,6 +262,8 @@ def test_unauthenticated_user_cannot_finalize_payment(
     session = SimpleNamespace(
         id="cs_finalize_unauth_123",
         payment_status="paid",
+        amount_total=_course_amount_minor(course),
+        currency="gbp",
         metadata={"user_id": str(user.id), "course_id": str(course.id)},
     )
     _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
@@ -208,6 +301,8 @@ def test_webhook_checkout_completed_creates_enrollment(
             "object": {
                 "id": "cs_webhook_123",
                 "payment_status": "paid",
+                "amount_total": _course_amount_minor(course),
+                "currency": "gbp",
                 "metadata": {
                     "user_id": str(user.id),
                     "course_id": str(course.id),
@@ -274,6 +369,8 @@ def test_finalize_payment_queues_email_when_enabled(
     session = SimpleNamespace(
         id="cs_notify_123",
         payment_status="paid",
+        amount_total=_course_amount_minor(course),
+        currency="gbp",
         metadata={"user_id": str(user.id), "course_id": str(course.id)},
     )
     _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
@@ -333,6 +430,8 @@ def test_finalize_payment_skips_email_when_disabled(
     session = SimpleNamespace(
         id="cs_notify_off_123",
         payment_status="paid",
+        amount_total=_course_amount_minor(course),
+        currency="gbp",
         metadata={"user_id": str(user.id), "course_id": str(course.id)},
     )
     _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)
@@ -372,6 +471,8 @@ def test_finalize_payment_does_not_duplicate_notification_emails_for_same_sessio
     session = SimpleNamespace(
         id="cs_notify_idempotent_123",
         payment_status="paid",
+        amount_total=_course_amount_minor(course),
+        currency="gbp",
         metadata={"user_id": str(user.id), "course_id": str(course.id)},
     )
     _mock_stripe(monkeypatch, payment_resource, retrieve_session=session)

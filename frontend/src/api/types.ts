@@ -205,6 +205,7 @@ export type EnrollmentListResponse = PaginatedResponse<Enrollment>;
 export interface Schedule {
   id: number;
   enrollment_id: number;
+  course_title?: string;
   date: string;
   start_time: string;
   end_time: string;

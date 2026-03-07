@@ -52,7 +52,6 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
 
   const resolveCourseTitle = (schedule: Schedule): string => {
     const scheduleWithCourse = schedule as Schedule & {
-      course_title?: string;
       enrollment?: {
         course?: {
           title?: string;
@@ -60,7 +59,7 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
       };
     };
 
-    const inlineCourseTitle = scheduleWithCourse.course_title?.trim();
+    const inlineCourseTitle = schedule.course_title?.trim();
     if (inlineCourseTitle) {
       return inlineCourseTitle;
     }
@@ -77,6 +76,14 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
     }
 
     return enrollment?.course_id ? `Course #${enrollment.course_id}` : "Course unavailable";
+  };
+
+  const resolveEnrollmentLabel = (schedule: Schedule): string => {
+    const enrollmentId = Number(schedule.enrollment_id);
+    if (Number.isInteger(enrollmentId) && enrollmentId > 0) {
+      return String(enrollmentId);
+    }
+    return "Unavailable";
   };
 
   const scheduledDates = schedules.map((s) => parseISO(s.date));
@@ -210,7 +217,7 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
                     <div>
                       <p className="font-medium text-card-foreground">{resolveCourseTitle(event)}</p>
                       <p className="text-sm text-muted-foreground">
-                        Enrollment #<span className="text-card-foreground">{event.enrollment_id}</span>
+                        Enrollment #<span className="text-card-foreground">{resolveEnrollmentLabel(event)}</span>
                       </p>
                     </div>
                   </div>
@@ -291,7 +298,7 @@ export const SchedulesTab = ({ isAdmin, currentUserId }: SchedulesTabProps) => {
           <div className="space-y-4">
             {selectedSchedule && (
               <div className="p-3 bg-muted rounded-lg text-sm">
-                <p className="font-medium text-card-foreground">Enrollment #{selectedSchedule.enrollment_id}</p>
+                <p className="font-medium text-card-foreground">Enrollment #{resolveEnrollmentLabel(selectedSchedule)}</p>
                 <p className="text-muted-foreground">
                   {format(parseISO(String(selectedSchedule.date)), "EEEE, MMM d, yyyy")} •{" "}
                   {selectedSchedule.start_time} - {selectedSchedule.end_time}

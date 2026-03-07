@@ -84,6 +84,33 @@ def _session_value(session, key, default=None):
 	return getattr(session, key, default)
 
 
+def _course_price_minor_or_400(course) -> int:
+	try:
+		return int((Decimal(course.price) * 100).quantize(Decimal("1")))
+	except (InvalidOperation, TypeError, ValueError):
+		abort(400, message="Invalid course price.")
+
+
+def _validate_paid_session_amount_or_400(session, course):
+	expected_amount_minor = _course_price_minor_or_400(course)
+
+	amount_total = _session_value(session, "amount_total")
+	try:
+		session_amount_minor = int(amount_total)
+	except (TypeError, ValueError):
+		abort(400, message="Stripe session amount is invalid.")
+
+	if session_amount_minor != expected_amount_minor:
+		abort(400, message="Stripe session amount does not match course price.")
+
+	session_currency = str(_session_value(session, "currency", "") or "").strip().lower()
+	expected_currency = str(current_app.config.get("STRIPE_CURRENCY", "gbp") or "gbp").strip().lower()
+	if not session_currency:
+		abort(400, message="Stripe session currency is missing.")
+	if session_currency != expected_currency:
+		abort(400, message="Stripe session currency does not match configured currency.")
+
+
 def _finalize_paid_checkout_session(session, expected_user_id=None):
 	payment_status = _session_value(session, "payment_status")
 	if payment_status != "paid":
@@ -106,6 +133,7 @@ def _finalize_paid_checkout_session(session, expected_user_id=None):
 	if user.role == "admin":
 		abort(403, message="Admin users cannot enroll in courses.")
 	course = _get_course_or_404(course_id)
+	_validate_paid_session_amount_or_400(session, course)
 
 	enrollment = Enrollment.query.filter_by(student_id=session_user_id, course_id=course.id).first()
 	if not enrollment:
@@ -215,10 +243,7 @@ class StripeCheckoutSessionCreate(MethodView):
 		success_url = f"{frontend_base_url}/checkout/{course.id}?status=success&session_id={{CHECKOUT_SESSION_ID}}"
 		cancel_url = f"{frontend_base_url}/checkout/{course.id}?status=cancel"
 
-		try:
-			amount_minor = int((Decimal(course.price) * 100).quantize(Decimal("1")))
-		except (InvalidOperation, TypeError):
-			abort(400, message="Invalid course price.")
+		amount_minor = _course_price_minor_or_400(course)
 
 		try:
 			session = stripe_client.checkout.Session.create(
